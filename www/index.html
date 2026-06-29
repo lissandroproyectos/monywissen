@@ -133,16 +133,41 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 }
 </style>
 
-<script src="./chart.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/chart.js';"></script>
+<link href="./js/cropper.min.css" rel="stylesheet" onerror="this.href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css'">
 
-<script src="./hammer.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js';"></script>
+<script src="./js/chart.js"></script>
+<script>
+    // Si falló el archivo local, forzamos la descarga de la nube antes de seguir
+    if (typeof Chart === 'undefined') {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js"><\\/script>');
+    }
+</script>
 
-<script src="./chartjs-plugin-zoom.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js';"></script>
+<script src="./js/hammer.min.js"></script>
+<script>
+    if (typeof Hammer === 'undefined') {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"><\\/script>');
+    }
+</script>
 
-<script src="./cropper.min.js" onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js';"></script>
+<script src="./js/chartjs-plugin-zoom.min.js"></script>
+<script>
+    // El plugin no crea una variable global, pero lo intentamos cargar si Chart no tiene la propiedad zoom
+    setTimeout(function() {
+        if (typeof Chart !== 'undefined' && !Chart.defaults.plugins.zoom) {
+            let s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js';
+            document.head.appendChild(s);
+        }
+    }, 500);
+</script>
 
-<link id="cropperCss" href="./cropper.min.css" rel="stylesheet" onerror="document.getElementById('cropperCss').href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css';">
-
+<script src="./js/cropper.min.js"></script>
+<script>
+    if (typeof Cropper === 'undefined') {
+        document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"><\\/script>');
+    }
+</script>
 </head>
 <body>
 
@@ -668,12 +693,40 @@ function switchProfile(name){
 
 
 
-function exportData(){
-  const blob = new Blob([JSON.stringify(app, null, 2)], {type: 'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'monywissen_' + currentProfile + '_' + today() + '.mnwsn';
-  a.click();
+function exportData() {
+    const dataStr = JSON.stringify(app);
+    const fileName = "Monywissen_Backup_" + today() + ".mnwsn";
+    const blob = new Blob([dataStr], { type: "text/plain" });
+
+    // Intento 1: Usar el menú de Compartir nativo de Android (Ideal para APK)
+    if (navigator.share && navigator.canShare) {
+        const file = new File([blob], fileName, { type: "text/plain" });
+        if (navigator.canShare({ files: [file] })) {
+            navigator.share({
+                title: 'Respaldo Monywissen',
+                text: 'Base de datos guardada el ' + today(),
+                files: [file]
+            }).catch(e => {
+                console.log("Compartir cancelado o falló, usando método tradicional.");
+                fallbackDownload(blob, fileName);
+            });
+            return;
+        }
+    }
+    
+    // Intento 2: Método web tradicional (Para PC)
+    fallbackDownload(blob, fileName);
+}
+
+function fallbackDownload(blob, fileName) {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
 }
 
 function importData(input){
@@ -1557,10 +1610,14 @@ function initUI() {
   setTodayIfEmpty();
   syncForm();
   runPlan();
-  updateAvatarInitials(); 
+  updateAvatarInitials();
   render();
   nav('dashboard');
-  checkWeeklyBackup();
+  
+  // Le damos medio segundo a las librerías para cargar e intentamos pintar la gráfica
+  setTimeout(updateChart, 500); 
+  
+  checkWeeklyBackup(); 
 }
 
 function normalizeRowData(item, keys) {
