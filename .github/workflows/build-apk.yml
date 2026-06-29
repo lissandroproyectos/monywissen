@@ -16,7 +16,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          # Quitamos la línea de caché para que no pida el archivo .lock
 
       - name: Install Dependencies
         run: npm install
@@ -31,7 +31,7 @@ jobs:
       - name: Add Android Platform
         run: npx cap add android
 
-      # 2. NUEVO PASO: Generar automáticamente los íconos y la pantalla de carga (Splash) desde tu SVG
+      # 2. Generar automáticamente los íconos y la pantalla de carga (Splash) desde tu SVG
       - name: Generate App Icons and Splash Screens
         run: |
           npm install -D @capacitor/assets
