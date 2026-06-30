@@ -376,17 +376,8 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   
   <div class="section" id="settings">
     <div class="card">
-      <div class="heading">Ajustes del Sistema</div>
-      
-      <!-- Sub-pestañas reordenadas -->
-      <div class="tabs">
-         <div class="tab active" onclick="switchSettingsTab('tab-rules', this)">⚙️ Reglas de Proyección</div>
-         <div class="tab" onclick="switchSettingsTab('tab-db', this)">💾 Base de Datos</div>
-         <div class="tab" onclick="switchSettingsTab('tab-share', this)">📤 Compartir</div>
-      </div>
-
-      <!-- Contenido: Reglas (Ahora es el Activo por defecto) -->
-      <div id="tab-rules" class="tab-content active">
+      <div class="heading">Reglas de Proyección</div>
+      <div class="small" style="margin-bottom:16px;">Ajusta las variables de tu flujo de caja proyectado.</div>
          <div class="grid grid2">
             <div><label>Inicio del Plan</label><input id="planStart" type="date" required></div>
             <div><label>Fin del Plan</label><input id="planEnd" type="date" required></div>
@@ -399,25 +390,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
             <div><label>Inicio base (Dinero Hoy)</label><input id="openingBalance" type="number" value="0" required></div>
             <div><label>Gasto libre (Opcional)</label><input id="freeSpend" type="number" value="0" required></div>
          </div>
-         <button class="btn primary" style="margin-top:12px;width:100%" onclick="saveSettings()">Guardar reglas</button>
-      </div>
-
-      <!-- Contenido: Base de Datos -->
-      <div id="tab-db" class="tab-content">
-         <div class="small" style="margin-bottom:12px">Respalda o restaura toda tu información financiera en formato seguro (.mnwsn).</div>
-         <div class="grid grid2">
-           <button class="btn" onclick="exportData()">⬇️ Exportar Base</button>
-           <button class="btn" onclick="document.getElementById('importFile').click()">⬆️ Importar Base</button>
-         </div>
-         <input id="importFile" type="file" accept=".mnwsn" style="display:none" onchange="importData(this)">
-      </div>
-
-      <!-- Contenido: Compartir -->
-      <div id="tab-share" class="tab-content">
-         <div class="small" style="margin-bottom:12px">Comparte tu base de datos actual a través de WhatsApp, Correo o Telegram.</div>
-         <button class="btn primary" style="width:100%; background:#0f9d58; border-color:#0f9d58;" onclick="shareProfile()">📤 Compartir Archivo por App</button>
-      </div>
-
+         <button class="btn primary" style="margin-top:16px;width:100%" onclick="saveSettings()">Guardar reglas</button>
     </div>
   </div>
 </div>
@@ -433,9 +406,9 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 
 <div class="modal" id="modal">
   <div class="card">
-    <div style="display:flex;justify-content:space-between;margin-bottom:16px">
-      <div class="heading" id="modalTitle">Nuevo</div>
-      <button class="btn icon" onclick="closeModal()"><svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div style="display:flex;justify-content:space-between;margin-bottom:16px;align-items:center;">
+      <div class="heading" id="modalTitle" style="margin:0;">Nuevo</div>
+      <button class="btn icon" onclick="closeModal()" style="font-size:22px; font-weight:bold; padding:0; border:none;">✕</button>
     </div>
     <div id="modalBody"></div>
     <div class="btn-row" style="margin-top:16px">
@@ -446,27 +419,25 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   </div>
 </div>
 
-<!-- Modal de Gestión de Perfiles (Se abre al tocar el Avatar) -->
-<!-- Modal de Gestión de Perfiles -->
 <div class="modal" id="profileModal">
   <div class="card">
-    <div style="display:flex;justify-content:space-between;margin-bottom:16px">
-      <div class="heading">Perfil: <span id="lblCurrentProfileName" style="color:var(--md-primary)"></span></div>
-      <button class="btn icon" onclick="closeProfileModal()"><svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="heading" style="margin:0;">Tu Perfil</div>
+      <button class="btn icon" onclick="closeProfileModal()" style="font-size:22px; font-weight:bold; padding:0; border:none;">✕</button>
     </div>
     
-    <!-- Sección de Foto de Perfil -->
-    <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:16px;">
-       <div id="profilePicPreview" style="width:80px; height:80px; border-radius:50%; background:var(--md-surface-variant); border:2px solid var(--md-primary); margin-bottom:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:bold; color:var(--md-primary);"></div>
-       
-       <button id="btnChangeProfilePic" class="btn" style="padding:4px 12px; font-size:11px; min-height:0; width:auto; display:none;" onclick="document.getElementById('profileImgInput').click()">📷 Cambiar Foto</button>
-       
+    <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:24px;">
+       <div id="profilePicPreview" style="width:110px; height:110px; border-radius:50%; background:var(--md-surface-variant); border:3px solid var(--md-primary); margin-bottom:12px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:36px; font-weight:bold; color:var(--md-primary); cursor:pointer; box-shadow:var(--shadow);" onclick="openAvatarDetail()" title="Ver o cambiar foto"></div>
        <input type="file" id="profileImgInput" accept="image/*" style="display:none" onchange="initProfileCropper(this)">
+       
+       <div style="display:flex; align-items:center; gap:8px; cursor:pointer;" onclick="renameProfile()" title="Toca para renombrar">
+         <div id="lblCurrentProfileName" style="font-size:24px; font-weight:900; color:var(--md-on-surface);"></div>
+         <span style="font-size:16px;"></span>
+       </div>
     </div>
 
-    <!-- Contenedor oculto para la herramienta de recorte -->
     <div id="cropperContainer" style="display:none; margin-bottom:16px;">
-       <div style="max-height:300px; width:100%; background:#000;">
+       <div style="max-height:300px; width:100%; background:#000; border-radius:12px; overflow:hidden;">
           <img id="cropperImage" style="max-width:100%; display:block;">
        </div>
        <div class="grid" style="grid-template-columns: auto 1fr 1fr; gap:8px; margin-top:8px;">
@@ -477,22 +448,22 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
     </div>
 
     <div id="profileManagementTools">
-        <div class="small">Cambiar a otro perfil:</div>
-        <select id="profileSelect" onchange="switchProfile(this.value)" style="margin-top:8px; margin-bottom:16px; font-weight:bold; color:var(--md-on-surface);"></select>
-        
-        <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
-        
-        <div class="grid grid2" style="margin-top:8px; margin-bottom:16px;">
-          <button class="btn" onclick="renameProfile()">✏️ Renombrar</button>
-          <button class="btn danger" onclick="deleteProfile()">🗑️ Eliminar</button>
+        <div class="heading" style="font-size:14px; color:var(--md-primary);">☁️ Respaldo y Datos</div>
+        <div class="grid grid2" style="margin-top:12px; margin-bottom:24px; gap:8px;">
+            <button class="btn primary" onclick="exportData(true)" style="background:#0f9d58; border-color:#0f9d58;">📤 Compartir este Perfil</button>
+            <button class="btn" onclick="exportData(false)">💾 Exportar Todo</button>
+            <button class="btn" onclick="document.getElementById('importFile').click()" style="grid-column:1/-1;">📥 Restaurar / Importar (.mnwsn)</button>
+            <input id="importFile" type="file" accept=".mnwsn" style="display:none" onchange="importData(this)">
         </div>
-        
+
         <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
         
-        <div class="small">Crear un nuevo perfil (Ej. Negocio, Personal):</div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <input id="newProfileName" placeholder="Nombre del perfil" style="flex:1" />
-          <button class="btn primary" onclick="createProfile()">Crear</button>
+        <div class="heading" style="font-size:14px; color:var(--md-primary);">👥 Cambiar de Cuenta</div>
+        <select id="profileSelect" onchange="switchProfile(this.value)" style="margin-top:12px; margin-bottom:12px; font-weight:bold; color:var(--md-on-surface);"></select>
+        
+        <div class="grid grid2" style="gap:8px;">
+          <button class="btn" onclick="promptCreateProfile()">+ Crear Nuevo</button>
+          <button class="btn danger" onclick="deleteProfile()">🗑️ Eliminar Actual</button>
         </div>
     </div>
   </div>
@@ -514,8 +485,13 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 
 <div class="modal" id="imgViewerModal" style="z-index: 5000; background: rgba(0,0,0,0.9);" onclick="closeImgViewer()">
   <div style="position: relative; max-width: 95vw; max-height: 95vh; margin: auto; display: flex; flex-direction: column; align-items: center; justify-content: center;" onclick="event.stopPropagation()">
-     <img id="imgViewerSource" style="max-width: 100%; max-height: 80vh; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.5); object-fit: contain;">
-     <button class="btn" style="margin-top: 16px; background: rgba(255,255,255,0.2); color: white; border: none; min-height: auto; padding: 8px 16px; border-radius: 20px;" onclick="closeImgViewer()">✕ Cerrar Vista</button>
+     <img id="imgViewerSource" style="max-width: 100%; max-height: 70vh; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.5); object-fit: contain;">
+     
+     <div id="avatarControls" style="display:none; margin-top:24px; width:100%; text-align:center;">
+         <button class="btn primary" style="border-radius:24px; padding:14px 28px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-weight:bold; font-size:16px;" onclick="triggerProfilePicChange()">📷 Cambiar Foto</button>
+     </div>
+
+     <button class="btn" style="margin-top: 24px; background: rgba(255,255,255,0.2); color: white; border: none; min-height: auto; padding: 10px 20px; border-radius: 20px; font-weight:bold;" onclick="closeImgViewer()">✕ Cerrar Vista</button>
   </div>
 </div>
 
@@ -718,116 +694,16 @@ function descargarArchivoPC(blob, fileName) {
 }
 
 
-function importData(input){
-  const file = input.files[0];
-  if(!file) return;
-  
-  // Filtro de seguridad: Bloquear si no es la extensión correcta
-  if(!file.name.endsWith('.mnwsn')) {
-     alert('Archivo no válido. Monywissen solo admite archivos con extensión .mnwsn');
-     input.value = ''; // limpiar input
-     return;
-  }
-  
-  const reader = new FileReader();
-  reader.onload = e => {
-     try {
-       app = JSON.parse(e.target.result);
-       currentProfile = app.currentProfile;
-       saveApp(); initProfiles(); syncForm(); runPlan();
-       alert('Base de datos restaurada con éxito.');
-     } catch (err) {
-       alert('Error de lectura: El archivo .mnwsn está corrupto.');
-     }
-  };
-  reader.readAsText(file);
-}
 
 // =========================================================================
 // ENGINE NATIVO CAPACITOR (BLINDADO PARA PC Y APK MULTIPLATAFORMA)
 // =========================================================================
 
-async function exportData() {
-    const dataStr = JSON.stringify(app);
-    const fileName = "Monywissen_Backup_" + today() + ".mnwsn";
-
-    // ENTORNO APK (Capacitor Nativo)
-    if (window.Capacitor && window.Capacitor.isPluginAvailable('Filesystem')) {
-        try {
-            const { Filesystem, Share } = window.Capacitor.Plugins;
-            
-            // 1. Escribimos el archivo directamente en la caché del sistema operativo
-            const writeResult = await Filesystem.writeFile({
-                path: fileName,
-                data: dataStr,
-                directory: 'CACHE',
-                encoding: 'utf8'
-            });
-            
-            // 2. Invocamos la hoja de compartición nativa de Android
-            await Share.share({
-                title: 'Respaldo Base de Datos',
-                text: 'Copia de seguridad financiera Monywissen.',
-                url: writeResult.uri
-            });
-        } catch (e) {
-            alert('Falla en exportación nativa: ' + e.message);
-        }
-    } 
-    // ENTORNO PC (Navegador Convencional)
-    else {
-        const blob = new Blob([dataStr], { type: "text/plain" });
-        descargarArchivoPC(blob, fileName);
-    }
-}
 
 function shareProfile() {
     exportData(); // Unificamos los disparadores para evitar redundancia de código
 }
 
-async function exportarPDF() {
-    if (typeof html2pdf === 'undefined') return alert("El motor de renderizado PDF no está listo.");
-    const elemento = byId('dashboard'); 
-    if (!elemento) return alert("Contenedor visual no localizado.");
-
-    const fileName = 'Reporte_Monywissen_' + today() + '.pdf';
-    const opciones = {
-        margin:       10,
-        filename:     fileName,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    // ENTORNO APK (Generación de binario y compartición nativa de archivos)
-    if (window.Capacitor && window.Capacitor.isPluginAvailable('Filesystem')) {
-        try {
-            // Generamos el documento en una cadena de texto Base64 limpia
-            const pdfDataUri = await html2pdf().set(opciones).from(elemento).outputPdf('datauristring');
-            const base64RawData = pdfDataUri.split(',')[1];
-            
-            const { Filesystem, Share } = window.Capacitor.Plugins;
-            
-            const writeResult = await Filesystem.writeFile({
-                path: fileName,
-                data: base64RawData,
-                directory: 'CACHE'
-            });
-            
-            await Share.share({
-                title: 'Reporte de Flujo de Caja',
-                text: 'Documento de proyección financiera generado desde la app.',
-                url: writeResult.uri
-            });
-        } catch (e) {
-            alert('Error en procesamiento de PDF móvil: ' + e.message);
-        }
-    } 
-    // ENTORNO PC (Descarga directa a disco duro)
-    else {
-        html2pdf().set(opciones).from(elemento).save();
-    }
-}
 
 // Interceptor de Entrada de Imágenes (Cámara de Hardware vs Explorador de Archivos)
 async function triggerImageCapture(type) {
@@ -1112,10 +988,169 @@ function removeDeliveryImg(idx) {
     renderDeliveryPreviews();
 }
 
-// --- NUEVAS FUNCIONES PARA EL VISOR DE DETALLES ---
-function viewImgDetail(src) {
+
+
+// =========================================================================
+// MOTOR PDF E IMPORTACIÓN/EXPORTACIÓN INTELIGENTE
+// =========================================================================
+
+async function exportarPDF() {
+    if (typeof html2pdf === 'undefined') return alert("El motor de renderizado PDF no está listo.");
+    const elemento = byId('dashboard'); 
+    if (!elemento) return alert("Contenedor visual no localizado.");
+
+    const fileName = 'Reporte_Monywissen_' + today() + '.pdf';
+    const opciones = {
+        margin:       10,
+        filename:     fileName,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+            scale: 2, 
+            useCORS: true,
+            // SOLUCIÓN AL CRASH: Ignoramos los canvas ocultos o de 0x0
+            ignoreElements: (node) => { return (node.tagName === 'CANVAS' && (node.width === 0 || node.height === 0)); }
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    if (window.Capacitor && window.Capacitor.isPluginAvailable('Filesystem')) {
+        try {
+            const pdfDataUri = await html2pdf().set(opciones).from(elemento).outputPdf('datauristring');
+            const base64RawData = pdfDataUri.split(',')[1];
+            const { Filesystem, Share } = window.Capacitor.Plugins;
+            const writeResult = await Filesystem.writeFile({ path: fileName, data: base64RawData, directory: 'CACHE' });
+            await Share.share({ title: 'Reporte Financiero', text: 'Flujo de caja generado desde la app.', url: writeResult.uri });
+        } catch (e) { alert('Error nativo PDF: ' + e.message); }
+    } else {
+        html2pdf().set(opciones).from(elemento).save();
+    }
+}
+
+// Exporta toda la App o solo el Perfil actual
+async function exportData(onlyCurrentProfile = false) {
+    let dataToExport = app;
+    let fileName = "Monywissen_Backup_FULL_" + today() + ".mnwsn";
+    let shareTitle = 'Respaldo Completo Monywissen';
+    let shareText = 'Base de datos completa guardada el ' + today();
+
+    if (onlyCurrentProfile) {
+        dataToExport = {
+            _isProfileExport: true,
+            profileName: currentProfile,
+            profileData: app.profiles[currentProfile]
+        };
+        fileName = `Monywissen_Perfil_${currentProfile.replace(/\s+/g,'_')}_${today()}.mnwsn`;
+        shareTitle = `Respaldo Perfil: ${currentProfile}`;
+        shareText = `Respaldo del perfil ${currentProfile} en Monywissen.`;
+    }
+
+    const dataStr = JSON.stringify(dataToExport);
+
+    if (window.Capacitor && window.Capacitor.isPluginAvailable('Filesystem')) {
+        try {
+            const { Filesystem, Share } = window.Capacitor.Plugins;
+            const writeResult = await Filesystem.writeFile({ path: fileName, data: dataStr, directory: 'CACHE', encoding: 'utf8' });
+            await Share.share({ title: shareTitle, text: shareText, url: writeResult.uri });
+        } catch (e) { alert('Error exportando: ' + e.message); }
+    } else {
+        const blob = new Blob([dataStr], { type: "text/plain" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fileName;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
+    }
+}
+
+function importData(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.mnwsn')) {
+        showDialog({ title: 'Error', msg: 'Archivo no válido. Solo se admiten archivos .mnwsn', hideCancel: true });
+        input.value = ''; return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const importedData = JSON.parse(e.target.result);
+            
+            // Si el archivo es solo de un perfil
+            if (importedData._isProfileExport) {
+                const pName = importedData.profileName;
+                const finalizeImport = () => {
+                    app.profiles[pName] = importedData.profileData;
+                    app.currentProfile = pName; currentProfile = pName;
+                    saveApp(); initProfiles(); syncForm(); runPlan(); updateAvatarInitials(); closeProfileModal();
+                    showDialog({ title: 'Éxito', msg: `Perfil "${pName}" importado y activado.`, hideCancel: true });
+                };
+                if (app.profiles[pName]) {
+                    showDialog({
+                        title: 'Sobrescribir Perfil',
+                        msg: `El perfil "${pName}" ya existe en tu app. ¿Deseas reemplazarlo con los datos del archivo?`,
+                        onConfirm: finalizeImport
+                    });
+                } else { finalizeImport(); }
+            } 
+            // Si el archivo es la App completa
+            else {
+                showDialog({
+                    title: 'Restaurar App Completa',
+                    msg: '🚨 Esto reemplazará TODOS tus perfiles actuales con los del archivo. ¿Continuar?',
+                    onConfirm: () => {
+                        app = importedData; currentProfile = app.currentProfile;
+                        saveApp(); initProfiles(); syncForm(); runPlan(); updateAvatarInitials(); closeProfileModal();
+                        showDialog({ title: 'Éxito', msg: 'Base de datos restaurada.', hideCancel: true });
+                    }
+                });
+            }
+        } catch (err) { showDialog({ title: 'Error', msg: 'El archivo .mnwsn está corrupto o vacío.', hideCancel: true }); }
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+// =========================================================================
+// NUEVA GESTIÓN DE PERFILES Y AVATARES
+// =========================================================================
+
+function promptCreateProfile() {
+    showDialog({
+        title: 'Crear Nuevo Perfil',
+        msg: 'Ingresa el nombre del nuevo perfil (Ej. Negocio, Personal):',
+        input: true,
+        onConfirm: (val) => {
+            const name = val.trim();
+            if(!name || app.profiles[name]) return showDialog({title:'Aviso', msg:'Nombre inválido o ya existe.', hideCancel:true});
+            
+            app.profiles[name] = {
+              settings: { planStart: today(), planEnd: new Date(Date.now()+1000*60*60*24*60).toISOString().slice(0,10), minBalance: 0, delayDays: 0, openingBalance: 0, freeSpend: 0 },
+              incomes: [], expenses: [], debts: [], savings: { pct: 0, current: 0 }
+            };
+            app.currentProfile = name; currentProfile = name;
+            saveApp(); initProfiles(); syncForm(); runPlan(); updateAvatarInitials(); closeProfileModal();
+            nav('settings');
+            showDialog({title:'¡Perfil Creado!', msg:`Por favor configura las Reglas de Proyección para "${name}".`, hideCancel:true});
+        }
+    });
+}
+
+function openAvatarDetail() {
+    const p = prof();
+    if(p && p.avatar) {
+        viewImgDetail(p.avatar, true); // true = Mostrar botón de cambiar foto
+    } else {
+        document.getElementById('profileImgInput').click(); // Si no hay foto, abre directo
+    }
+}
+
+function triggerProfilePicChange() {
+    closeImgViewer();
+    document.getElementById('profileImgInput').click();
+}
+
+function viewImgDetail(src, isAvatar = false) {
     if(!src) return;
     byId('imgViewerSource').src = src;
+    byId('avatarControls').style.display = isAvatar ? 'block' : 'none';
     byId('imgViewerModal').classList.add('active');
 }
 
