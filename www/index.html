@@ -134,6 +134,8 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 </style>
 
   <link href="./js/cropper.min.css" rel="stylesheet" onerror="this.onerror=null; this.href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css'">
+  
+  <script src="capacitor.js"></script>
 
   <script src="./js/chart.js"></script>
   <script src="./js/hammer.min.js"></script>
@@ -194,6 +196,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <button class="navbtn" data-view="debts">Deudas</button>
   <button class="navbtn" data-view="savings">Ahorros</button>
   <button class="navbtn" data-view="settings">Ajustes</button>
+  <button class="navbtn" data-view="transactions">Transaccion</button>
 </div>
 <div class="content">
   
@@ -329,6 +332,20 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
       <div id="debtList"></div>
     </div>
   </div>
+  
+  <div class="section" id="transactions">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px; align-items:center;">
+        <div class="heading" style="margin:0;">Transacciones Únicas</div>
+        <div style="display:flex; gap:4px;">
+          <button class="btn primary" onclick="openCreate('income', true)" style="padding:6px 12px; min-height:0; font-size:12px;">+ Ingreso</button>
+          <button class="btn danger" onclick="openCreate('expense', true)" style="padding:6px 12px; min-height:0; font-size:12px;">+ Gasto</button>
+        </div>
+      </div>
+      <div class="small" style="margin-bottom:12px;">Movimientos de una sola vez que afectan tu saldo pero no se repiten.</div>
+      <div id="transactionsList"></div>
+    </div>
+  </div>
 
   <!-- Pestaña de Ahorros y Divisas -->
   <div class="section" id="savings">
@@ -411,6 +428,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <button class="navbtn" data-view="income">Ingresos</button>
   <button class="navbtn" data-view="expenses">Gastos</button>
   <button class="navbtn" data-view="debts">Deudas</button>
+  <button class="navbtn" data-view="transactions">Únicas</button>
 </div>
 
 <div class="modal" id="modal">
@@ -686,70 +704,6 @@ function switchProfile(name){
 }
 
 
-// --- EXPORTACIÓN UNIVERSAL (WEB SHARE API) ---
-
-async function exportData() {
-    const dataStr = JSON.stringify(app);
-    const fileName = "Monywissen_Backup_" + today() + ".mnwsn";
-    const blob = new Blob([dataStr], { type: "text/plain" });
-
-    // 1. Intenta usar el menú nativo de Android (Compartir)
-    if (navigator.share && navigator.canShare) {
-        const file = new File([blob], fileName, { type: "text/plain" });
-        if (navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    title: 'Respaldo Monywissen',
-                    text: 'Base de datos guardada el ' + today(),
-                    files: [file]
-                });
-                return; 
-            } catch (e) {
-                console.log("Compartir cancelado o no soportado, usando método de descarga local.");
-            }
-        }
-    }
-    
-    // 2. Método tradicional (Descarga al equipo)
-    descargarArchivoPC(blob, fileName);
-}
-
-async function exportarPDF() {
-    const elemento = byId('dashboard'); 
-    if (!elemento) return alert("No se encontró la vista para imprimir.");
-
-    const fileName = 'Reporte_Monywissen_' + today() + '.pdf';
-    const opciones = {
-        margin:       10,
-        filename:     fileName,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    // Genera el PDF en memoria
-    const pdfSalida = await html2pdf().set(opciones).from(elemento).output('blob');
-
-    // 1. Intenta abrir el menú nativo de Android para mandar por WhatsApp/Drive
-    if (navigator.share && navigator.canShare) {
-        const file = new File([pdfSalida], fileName, { type: "application/pdf" });
-        if (navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    title: 'Reporte Financiero',
-                    text: 'Adjunto reporte de flujo de caja.',
-                    files: [file]
-                });
-                return;
-            } catch (e) {
-                console.log("Compartir PDF cancelado.");
-            }
-        }
-    }
-    
-    // 2. Método tradicional (Descarga al equipo)
-    descargarArchivoPC(pdfSalida, fileName);
-}
 
 // Función que fuerza la descarga en navegadores
 function descargarArchivoPC(blob, fileName) {
@@ -789,27 +743,119 @@ function importData(input){
   reader.readAsText(file);
 }
 
-// Nueva función de compartir utilizando la API nativa del teléfono
-async function shareProfile() {
-  const fileName = 'monywissen_' + currentProfile + '_' + today() + '.mnwsn';
-  const fileToShare = new File([JSON.stringify(app, null, 2)], fileName, { type: 'application/json' });
+// =========================================================================
+// ENGINE NATIVO CAPACITOR (BLINDADO PARA PC Y APK MULTIPLATAFORMA)
+// =========================================================================
 
-  // Verificar si el navegador del celular soporta compartir archivos nativamente
-  if (navigator.canShare && navigator.canShare({ files: [fileToShare] })) {
-    try {
-      await navigator.share({
-        title: 'Respaldo Monywissen',
-        text: 'Aquí está el archivo de respaldo de mi perfil financiero.',
-        files: [fileToShare]
-      });
-    } catch (error) {
-      console.log('El usuario canceló o falló al compartir', error);
+async function exportData() {
+    const dataStr = JSON.stringify(app);
+    const fileName = "Monywissen_Backup_" + today() + ".mnwsn";
+
+    // ENTORNO APK (Capacitor Nativo)
+    if (window.Capacitor && window.Capacitor.isPluginAvailable('Filesystem')) {
+        try {
+            const { Filesystem, Share } = window.Capacitor.Plugins;
+            
+            // 1. Escribimos el archivo directamente en la caché del sistema operativo
+            const writeResult = await Filesystem.writeFile({
+                path: fileName,
+                data: dataStr,
+                directory: 'CACHE',
+                encoding: 'utf8'
+            });
+            
+            // 2. Invocamos la hoja de compartición nativa de Android
+            await Share.share({
+                title: 'Respaldo Base de Datos',
+                text: 'Copia de seguridad financiera Monywissen.',
+                url: writeResult.uri
+            });
+        } catch (e) {
+            alert('Falla en exportación nativa: ' + e.message);
+        }
+    } 
+    // ENTORNO PC (Navegador Convencional)
+    else {
+        const blob = new Blob([dataStr], { type: "text/plain" });
+        descargarArchivoPC(blob, fileName);
     }
-  } else {
-    // Si está en PC y no soporta "Compartir", lo descarga como archivo normal
-    alert('Tu dispositivo no soporta compartir directamente. Se descargará el archivo para que lo envíes por correo o chat.');
-    exportData();
-  }
+}
+
+function shareProfile() {
+    exportData(); // Unificamos los disparadores para evitar redundancia de código
+}
+
+async function exportarPDF() {
+    if (typeof html2pdf === 'undefined') return alert("El motor de renderizado PDF no está listo.");
+    const elemento = byId('dashboard'); 
+    if (!elemento) return alert("Contenedor visual no localizado.");
+
+    const fileName = 'Reporte_Monywissen_' + today() + '.pdf';
+    const opciones = {
+        margin:       10,
+        filename:     fileName,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // ENTORNO APK (Generación de binario y compartición nativa de archivos)
+    if (window.Capacitor && window.Capacitor.isPluginAvailable('Filesystem')) {
+        try {
+            // Generamos el documento en una cadena de texto Base64 limpia
+            const pdfDataUri = await html2pdf().set(opciones).from(elemento).outputPdf('datauristring');
+            const base64RawData = pdfDataUri.split(',')[1];
+            
+            const { Filesystem, Share } = window.Capacitor.Plugins;
+            
+            const writeResult = await Filesystem.writeFile({
+                path: fileName,
+                data: base64RawData,
+                directory: 'CACHE'
+            });
+            
+            await Share.share({
+                title: 'Reporte de Flujo de Caja',
+                text: 'Documento de proyección financiera generado desde la app.',
+                url: writeResult.uri
+            });
+        } catch (e) {
+            alert('Error en procesamiento de PDF móvil: ' + e.message);
+        }
+    } 
+    // ENTORNO PC (Descarga directa a disco duro)
+    else {
+        html2pdf().set(opciones).from(elemento).save();
+    }
+}
+
+// Interceptor de Entrada de Imágenes (Cámara de Hardware vs Explorador de Archivos)
+async function triggerImageCapture(type) {
+    // ENTORNO APK: Desplegamos la interfaz nativa de la cámara de Android
+    if (window.Capacitor && window.Capacitor.isPluginAvailable('Camera')) {
+        try {
+            const { Camera } = window.Capacitor.Plugins;
+            const photo = await Camera.getPhoto({
+                quality: 65,
+                allowEditing: false,
+                resultType: 'dataUrl', // Exigimos la conversión inmediata a Base64
+                source: 'PROMPT',      // Despliega menú flotante nativo: ¿Tomar foto o abrir galería?
+                promptLabelHeader: 'Añadir Registro Fotográfico',
+                promptLabelPhoto: 'Buscar en Galería',
+                promptLabelPicture: 'Encender Cámara'
+            });
+            
+            // Enviamos el flujo Base64 directamente a tu procesador y compresor canvas
+            handleImageUpload({ dataUrlFromCapacitor: photo.dataUrl }, type);
+        } catch (e) {
+            console.log("Captura cancelada por el usuario.");
+        }
+    } 
+    // ENTORNO PC: Ejecutamos el disparo simulado sobre el input oculto
+    else {
+        const targetInputId = type === 'receipt' ? 'inpReceipt' : 'inpDelivery';
+        if (byId(targetInputId)) byId(targetInputId).click();
+    }
 }
 
 function nav(view){
@@ -886,42 +932,66 @@ function debtForm(x={}){
   '</div>';
 }
 
-function openCreate(type){
-  modalType=type;modalIndex=null;
-  byId('modalTitle').textContent=type==='income'?'Nuevo ingreso':type==='expense'?'Nuevo gasto':type==='saving'?'Registrar Ahorro/Divisa':'Nueva deuda';
+
+function singleTransactionForm(type, x={}) {
+  return '<div class="grid grid2">'+
+    '<div><label>Nombre / Concepto</label><input id="f_name" value="'+(x.name||'')+'" required></div>'+
+    '<div><label>Monto ($)</label><input id="f_amount" type="number" value="'+(x.amount||'')+'" required></div>'+
+    '<div style="grid-column: 1 / -1;"><label>Descripción / Detalle</label><input id="f_desc" value="'+(x.desc||'')+'" placeholder="Ej. Pago de grúa, repuesto específico..."></div>'+
+    '<div style="grid-column: 1 / -1;"><label>Fecha de Operación</label><input id="f_date" type="date" value="'+(x.date||today())+'" required></div>'+
+  '</div>';
+}
+
+function openCreate(type, forceOneTime = false){
+  modalType=type; modalIndex=null;
+  window.isSingleTransaction = forceOneTime; // Guardamos el estado globalmente
+  
+  byId('modalTitle').textContent = forceOneTime ? (type==='income'?'Nuevo Ingreso Único':'Nuevo Gasto Único') : (type==='income'?'Nuevo ingreso':type==='expense'?'Nuevo gasto':type==='saving'?'Registrar Ahorro/Divisa':'Nueva deuda');
   byId('btnDelete').style.display='none';
   byId('btnSave').style.display='inline-flex';
   
   let html = '';
-  if(type==='income') html = incomeForm();
-  else if(type==='expense') html = expenseForm();
-  else if(type==='saving') html = savingForm();
-  else html = debtForm();
+  if (forceOneTime) {
+      html = singleTransactionForm(type);
+  } else {
+      if(type=='income') html = incomeForm();
+      else if(type==='expense') html = expenseForm();
+      else if(type==='saving') html = savingForm();
+      else html = debtForm();
+  }
   
   byId('modalBody').innerHTML=html;
   byId('modal').classList.add('active');
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
 }
 
-function openEdit(type,idx){
-  modalType=type;modalIndex=idx;
-  const p=prof();
-  byId('modalTitle').textContent=type==='income'?'Editar ingreso':type==='expense'?'Editar gasto':type==='saving'?'Editar Ahorro':'Editar deuda';
+function openEdit(type, idx) {
+  modalType = type; modalIndex = idx;
+  const p = prof();
+  
+  // Detectamos si el elemento a editar es una transacción única (one-time)
+  const item = type === 'income' ? p.incomes[idx] : p.expenses[idx];
+  window.isSingleTransaction = item && item.freq === 'one-time';
+
+  byId('modalTitle').textContent = window.isSingleTransaction ? 'Editar Transacción Única' : (type==='income'?'Editar ingreso':type==='expense'?'Editar gasto':type==='saving'?'Editar Ahorro':'Editar deuda');
   byId('btnDelete').style.display='inline-flex';
   byId('btnSave').style.display='inline-flex';
   
   let html = '';
-  if(type==='income') html = incomeForm(p.incomes[idx]);
-  else if(type==='expense') html = expenseForm(p.expenses[idx]);
-  else if(type==='saving') html = savingForm(p.savingsList[idx]);
-  else html = debtForm(p.debts[idx]);
+  if (window.isSingleTransaction) {
+      html = singleTransactionForm(type, item);
+  } else {
+      if(type==='income') html = incomeForm(p.incomes[idx]);
+      else if(type==='expense') html = expenseForm(p.expenses[idx]);
+      else if(type==='saving') html = savingForm(p.savingsList[idx]);
+      else html = debtForm(p.debts[idx]);
+  }
   
   byId('modalBody').innerHTML=html;
   byId('modal').classList.add('active');
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
   if(type === 'saving') setTimeout(renderDeliveryPreviews, 100);
 }
-
 
 // --- FORMULARIO DE AHORROS / DIVISAS ---
 function savingForm(x={}){
@@ -941,10 +1011,10 @@ function savingForm(x={}){
       '<option value="completed"'+(status==='completed'?' selected':'')+'>✅ Completado / En Mano</option>'+
     '</select></div>'+
     
-    // Comprobante (Permite seleccionar de galería o cámara)
+    // Comprobante (Llama al disparador nativo Capacitor)
     '<div style="grid-column: 1 / -1; background: var(--md-surface-variant); padding: 12px; border-radius: 12px;">'+
        '<div class="small" style="font-weight:bold; margin-bottom:8px;">Comprobante de Pago (Transferencia)</div>'+
-       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="byId(\'inpReceipt\').click()">📤 Seleccionar Comprobante</button>'+
+       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="triggerImageCapture(\'receipt\')">📤 Seleccionar Comprobante</button>'+
        '<input type="file" id="inpReceipt" accept="image/*" style="display:none" onchange="handleImageUpload(this, \'receipt\')">'+
        '<div id="previewReceipt" style="margin-top:8px; text-align:center; position:relative;">'+
          (window.tempSavingImgReceipt ? 
@@ -955,11 +1025,11 @@ function savingForm(x={}){
        '</div>'+
     '</div>'+
     
-    // Fotos del Dinero (Fuerza apertura de cámara: capture="environment")
+    // Fotos del Dinero (Llama al disparador nativo Capacitor)
     '<div style="grid-column: 1 / -1; background: var(--md-surface-variant); padding: 12px; border-radius: 12px;">'+
        '<div class="small" style="font-weight:bold; margin-bottom:8px;">Fotos del Dinero Recibido</div>'+
-       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="byId(\'inpDelivery\').click()">📸 Tomar Foto de Entrega</button>'+
-       '<input type="file" id="inpDelivery" accept="image/*" capture="environment" style="display:none" onchange="handleImageUpload(this, \'delivery\')">'+
+       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="triggerImageCapture(\'delivery\')">📸 Tomar Foto de Entrega</button>'+
+       '<input type="file" id="inpDelivery" accept="image/*" style="display:none" onchange="handleImageUpload(this, \'delivery\')">'+
        '<div id="previewDelivery" style="display:flex; gap:12px; margin-top:8px; overflow-x:auto; padding: 6px 0;"></div>'+
        '<div class="small" style="color:var(--md-outline); margin-top:6px; text-align:center;">* Toca la foto para ampliarla • Toca la ✕ para eliminarla</div>'+
     '</div>'+
@@ -968,30 +1038,25 @@ function savingForm(x={}){
 
 // --- PROCESADOR DE IMAGEN (COMPRESIÓN LOCAL) ---
 function handleImageUpload(input, type) {
-    const file = input.files[0];
-    if (!file) return;
+    // Si viene de Capacitor, extraemos el origen directo, si no, leemos el archivo físico de la PC
+    const isCapacitor = !!input.dataUrlFromCapacitor;
+    const file = !isCapacitor ? input.files[0] : null;
+    if (!isCapacitor && !file) return;
     
     if (type === 'receipt') byId('previewReceipt').innerHTML = '<span class="small">Comprimiendo...</span>';
     
-    const reader = new FileReader();
-    reader.onload = function(e) {
+    const parseImgData = (srcString) => {
         const img = new Image();
         img.onload = function() {
             const canvas = document.createElement('canvas');
             const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
             let width = img.width; let height = img.height;
-
-            if (width > height) {
-                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-            } else {
-                if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
-            }
+            if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+            else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
             canvas.width = width; canvas.height = height;
             
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            
-            // Comprime a JPEG
             const dataUrl = canvas.toDataURL('image/jpeg', 0.6); 
             
             if (type === 'receipt') {
@@ -1007,12 +1072,18 @@ function handleImageUpload(input, type) {
                 renderDeliveryPreviews();
             }
         }
-        img.src = e.target.result;
+        img.src = srcString;
     }
-    reader.readAsDataURL(file);
-    input.value = ''; // Limpia el input por si quieres repetir la foto
-}
 
+    if (isCapacitor) {
+        parseImgData(input.dataUrlFromCapacitor);
+    } else {
+        const reader = new FileReader();
+        reader.onload = function(e) { parseImgData(e.target.result); };
+        reader.readAsDataURL(file);
+        input.value = '';
+    }
+}
 
 function renderDeliveryPreviews() {
     const container = byId('previewDelivery');
@@ -1098,14 +1169,28 @@ function saveModal(){
 
   if(t==='income'){
     const amount=parseFloat(byId('f_amount').value)||0;
-    const freq=byId('f_freq').value;
-    const obj={id:i!==null?p.incomes[i].id:uid(),name,amount,freq,day:freq!=='one-time'?(+byId('f_day').value||1):undefined,date:freq==='one-time'?(byId('f_date')?byId('f_date').value:today()):undefined};
+    let obj;
+    if (window.isSingleTransaction) {
+        const desc = byId('f_desc').value.trim();
+        const date = byId('f_date').value || today();
+        obj={id:i!==null?p.incomes[i].id:uid(),name,amount,freq:'one-time',date,desc};
+    } else {
+        const freq=byId('f_freq').value;
+        obj={id:i!==null?p.incomes[i].id:uid(),name,amount,freq,day:freq!=='one-time'?(+byId('f_day').value||1):undefined,date:freq==='one-time'?(byId('f_date')?byId('f_date').value:today()):undefined};
+    }
     if(i===null)p.incomes.push(obj);else p.incomes[i]=obj;
   }
   else if(t==='expense'){
     const amount=parseFloat(byId('f_amount').value)||0;
-    const freq=byId('f_freq').value;
-    const obj={id:i!==null?p.expenses[i].id:uid(),name, amount, freq,day:freq!=='one-time'?(+byId('f_day').value||1):undefined,date:freq==='one-time'?(byId('f_date')?byId('f_date').value:today()):undefined,end:byId('f_end')?(byId('f_end').value||''):'',flex:byId('f_flex')?byId('f_flex').value==='true':false};
+    let obj;
+    if (window.isSingleTransaction) {
+        const desc = byId('f_desc').value.trim();
+        const date = byId('f_date').value || today();
+        obj={id:i!==null?p.p.expenses[i].id:uid(),name,amount,freq:'one-time',date,desc,flex:false};
+    } else {
+        const freq=byId('f_freq').value;
+        obj={id:i!==null?p.expenses[i].id:uid(),name,amount,freq,day:freq!=='one-time'?(+byId('f_day').value||1):undefined,date:freq==='one-time'?(byId('f_date')?byId('f_date').value:today()):undefined,end:byId('f_end')?(byId('f_end').value||''):'',flex:byId('f_flex')?byId('f_flex').value==='true':false};
+    }
     if(i===null)p.expenses.push(obj);else p.expenses[i]=obj;
   }
   else if(t==='debt'){
@@ -1270,34 +1355,6 @@ function table(rows, cols, type) {
   return html;
 }
 
-function renderIncome() {
-  const p = prof();
-  byId('incomeList').innerHTML = table(
-    p.incomes.map(x => ({
-      Nombre: x.name,
-      Monto: fmt(x.amount),
-      Frecuencia: x.freq === 'one-time' ? 'Una vez' : x.freq === 'weekly' ? 'Semanal' : x.freq === 'biweekly' ? 'Bisemanal' : x.freq === 'triweekly' ? 'Trisemanal' : 'Mensual',
-      Día: x.freq === 'one-time' ? (x.date || '-') : (x.day || '-')
-    })),
-    ['Nombre', 'Monto', 'Frecuencia', 'Día'],
-    'income'
-  );
-}
-
-function renderExpenses() {
-  const p = prof();
-  byId('expenseList').innerHTML = table(
-    p.expenses.map(x => ({
-      Nombre: x.name,
-      Monto: fmt(x.amount),
-      Frecuencia: x.freq === 'one-time' ? 'Una vez' : x.freq === 'weekly' ? 'Semanal' : x.freq === 'biweekly' ? 'Bisemanal' : x.freq === 'triweekly' ? 'Trisemanal' : 'Mensual',
-      Día: x.freq === 'one-time' ? (x.date || '-') : (x.day || '-'),
-      Flexible: x.flex ? 'Sí' : 'No'
-    })),
-    ['Nombre', 'Monto', 'Frecuencia', 'Día', 'Flexible'],
-    'expense'
-  );
-}
 
 function getRemainingSpecialDebt(x) {
   if (x.type !== 'cashea' && x.type !== 'quoota') return x.balance || 0;
@@ -1603,15 +1660,82 @@ function changeMonth(offset) {
 
 // Nueva función para resetear o fijar el monto exacto de los ahorros
 
+function renderIncome() {
+  const p = prof();
+  // Solo muestra los recurrentes
+  const recurrentes = p.incomes.map((x, idx) => ({...x, originalIdx: idx})).filter(x => x.freq !== 'one-time');
+  
+  byId('incomeList').innerHTML = table(
+    recurrentes.map(x => ({
+      Nombre: x.name,
+      Monto: fmt(x.amount),
+      Frecuencia: x.freq === 'weekly' ? 'Semanal' : x.freq === 'biweekly' ? 'Bisemanal' : x.freq === 'triweekly' ? 'Trisemanal' : 'Mensual',
+      Día: x.day || '-'
+    })),
+    ['Nombre', 'Monto', 'Frecuencia', 'Día'],
+    'income', recurrentes
+  );
+}
+
+function renderExpenses() {
+  const p = prof();
+  // Solo muestra los recurrentes
+  const recurrentes = p.expenses.map((x, idx) => ({...x, originalIdx: idx})).filter(x => x.freq !== 'one-time');
+  
+  byId('expenseList').innerHTML = table(
+    recurrentes.map(x => ({
+      Nombre: x.name,
+      Monto: fmt(x.amount),
+      Frecuencia: x.freq === 'weekly' ? 'Semanal' : x.freq === 'biweekly' ? 'Bisemanal' : x.freq === 'triweekly' ? 'Trisemanal' : 'Mensual',
+      Flexible: x.flex ? 'Sí' : 'No'
+    })),
+    ['Nombre', 'Monto', 'Frecuencia', 'Flexible'],
+    'expense', recurrentes
+  );
+}
+
+function renderTransactions() {
+  const p = prof();
+  // Combina y muestra SOLO los de una vez (one-time)
+  let unicos = [];
+  p.incomes.forEach((x, idx) => { if(x.freq === 'one-time') unicos.push({...x, tipoReal: 'income', originalIdx: idx}) });
+  p.expenses.forEach((x, idx) => { if(x.freq === 'one-time') unicos.push({...x, tipoReal: 'expense', originalIdx: idx}) });
+  
+  // Ordenar por fecha más reciente
+  unicos.sort((a,b) => b.date.localeCompare(a.date));
+  
+  if (!unicos.length) {
+     byId('transactionsList').innerHTML = '<div class="small" style="padding:16px; text-align:center;">Sin transacciones únicas</div>';
+     return;
+  }
+  
+  let html = '<table class="table"><thead><tr><th>Fecha</th><th>Nombre</th><th>Monto</th><th></th></tr></thead><tbody>';
+  unicos.forEach(row => {
+    const color = row.tipoReal === 'income' ? '#0f9d58' : '#d93025';
+    html += `<tr onclick="openEdit('${row.tipoReal}', ${row.originalIdx})" style="cursor:pointer;">
+      <td style="white-space:nowrap">${formatDate(row.date)}</td>
+      <td>${row.name}</td>
+      <td style="color:${color}; font-weight:bold;">${row.tipoReal === 'income' ? '+' : '-'}${fmt(row.amount)}</td>
+      <td style="text-align:right; color:var(--md-primary);">✎</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  byId('transactionsList').innerHTML = html;
+}
+
+
+// Asegúrate de agregar renderTransactions a tu función render()
 function render() {
   renderIncome();
   renderExpenses();
+  renderTransactions(); // <-- NUEVO
   renderDebts();
   renderCalendar();
   renderDashboard();
   renderSavings();
   renderSettings();
 }
+
 function syncForm() {
 renderSettings();
 renderSavings();
