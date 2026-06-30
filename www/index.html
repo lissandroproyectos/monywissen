@@ -133,45 +133,35 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 }
 </style>
 
-  <link href="./js/cropper.min.css" rel="stylesheet" onerror="this.href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css'">
+  <link href="./js/cropper.min.css" rel="stylesheet" onerror="this.onerror=null; this.href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css'">
 
   <script src="./js/chart.js"></script>
-  <script>
-      if (typeof Chart === 'undefined') {
-          document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js"><\\/script>');
-      }
-  </script>
-
   <script src="./js/hammer.min.js"></script>
-  <script>
-      if (typeof Hammer === 'undefined') {
-          document.write('<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"><\\/script>');
-      }
-  </script>
-
   <script src="./js/chartjs-plugin-zoom.min.js"></script>
+  <script src="./js/cropper.min.js"></script>
+  <script src="./js/html2pdf.bundle.min.js"></script>
+
   <script>
       setTimeout(function() {
-          if (typeof Chart !== 'undefined' && !Chart.defaults.plugins.zoom) {
+          function loadAsync(url) {
               let s = document.createElement('script');
-              s.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js';
+              s.src = url;
+              s.async = true; // <-- Esto evita que la app se quede pegada
               document.head.appendChild(s);
           }
-      }, 500);
-  </script>
-
-  <script src="./js/cropper.min.js"></script>
-  <script>
-      if (typeof Cropper === 'undefined') {
-          document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"><\\/script>');
-      }
-  </script>
-
-  <script src="./js/html2pdf.bundle.min.js"></script>
-  <script>
-      if (typeof html2pdf === 'undefined') {
-          document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\\/script>');
-      }
+          
+          if (typeof Chart === 'undefined') loadAsync('https://cdn.jsdelivr.net/npm/chart.js');
+          if (typeof Hammer === 'undefined') loadAsync('https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js');
+          if (typeof Cropper === 'undefined') loadAsync('https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js');
+          if (typeof html2pdf === 'undefined') loadAsync('https://unpkg.com/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js');
+          
+          // El plugin de zoom se carga 1 segundo después por si acaso
+          setTimeout(function() {
+              if (typeof Chart !== 'undefined' && !Chart.defaults.plugins.zoom) {
+                  loadAsync('https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js');
+              }
+          }, 1000);
+      }, 50); // Inicia esta revisión 50 milisegundos después de arrancar
   </script>
 </head>
 <body>
@@ -183,7 +173,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   </div>
   <div class="actions" style="align-items:center; gap:10px;">
      <!-- Botón global de PDF -->
-     <button class="btn icon" style="padding:6px; min-height:0; font-size:18px; width:auto; border:none; background:transparent;" onclick="window.print()" title="Exportar a PDF">🖨️</button>
+    <button class="btn icon" style="padding:6px; min-height:0; font-size:18px; width:auto; border:none; background:transparent;" onclick="exportarPDF()" title="Exportar Reporte a PDF">🖨️</button>
      
      <!-- Avatar del Perfil Activo -->
      <div class="avatar" id="topAvatar" onclick="openProfileModal()" title="Gestionar Perfiles">--</div>
@@ -256,29 +246,31 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
       </div>
       <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
     
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-       <div class="heading" style="font-size:14px; margin:0;">Gráfico de Proyección</div>
-       <div style="display:flex; gap:8px; align-items:center;">
-          
-          <button class="btn icon" onclick="exportarPDF()" title="Exportar Reporte a PDF" style="padding:6px; background:var(--md-surface-variant); border-radius:8px;">📄</button>
-          
-          <div class="small" style="color:var(--md-primary);">💡 Usa 2 dedos para hacer zoom</div>
-       </div>
-    </div>
-    
-    <div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; gap:8px;">
-        <div><label style="font-size:10px;">Desde</label><input type="date" id="chartStart" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()"></div>
-        <div><label style="font-size:10px;">Hasta</label><input type="date" id="chartEnd" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()"></div>
-        <div><label style="font-size:10px;">Agrupar por</label><select id="chartGroup" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()">
-           <option value="day">Día</option>
-           <option value="week" selected>Semana</option>
-           <option value="month">Mes</option>
-        </select></div>
-    </div>
-    
-    <div style="height: 250px; width:100%;">
-        <canvas id="financeChart"></canvas>
-    </div>
+		<div id="chartSectionWrapper" style="display:none;">
+			<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+			   <div class="heading" style="font-size:14px; margin:0;">Gráfico de Proyección</div>
+			   <div style="display:flex; gap:8px; align-items:center;">
+				  
+				  <button id="btnExportPDF" class="btn icon" onclick="exportarPDF()" title="Exportar Reporte a PDF" style="padding:6px; background:var(--md-surface-variant); border-radius:8px; display:none;">🖨️</button>
+				  
+				  <div class="small" style="color:var(--md-primary);">💡 Usa 2 dedos para hacer zoom</div>
+			   </div>
+			</div>
+			
+			<div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; gap:8px;">
+				<div><label style="font-size:10px;">Desde</label><input type="date" id="chartStart" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()"></div>
+				<div><label style="font-size:10px;">Hasta</label><input type="date" id="chartEnd" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()"></div>
+				<div><label style="font-size:10px;">Agrupar por</label><select id="chartGroup" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()">
+				   <option value="day">Día</option>
+				   <option value="week" selected>Semana</option>
+				   <option value="month">Mes</option>
+				</select></div>
+			</div>
+			
+			<div style="height: 250px; width:100%;">
+				<canvas id="financeChart"></canvas>
+			</div>
+		</div>
     </div>
 
     <div class="grid grid2">
@@ -448,7 +440,9 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
     <!-- Sección de Foto de Perfil -->
     <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:16px;">
        <div id="profilePicPreview" style="width:80px; height:80px; border-radius:50%; background:var(--md-surface-variant); border:2px solid var(--md-primary); margin-bottom:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:bold; color:var(--md-primary);"></div>
-       <button class="btn" style="padding:4px 12px; font-size:11px; min-height:0; width:auto;" onclick="document.getElementById('profileImgInput').click()">📷 Cambiar Foto</button>
+       
+       <button id="btnChangeProfilePic" class="btn" style="padding:4px 12px; font-size:11px; min-height:0; width:auto; display:none;" onclick="document.getElementById('profileImgInput').click()">📷 Cambiar Foto</button>
+       
        <input type="file" id="profileImgInput" accept="image/*" style="display:none" onchange="initProfileCropper(this)">
     </div>
 
@@ -679,12 +673,6 @@ function switchSettingsTab(tabId, el) {
    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
    byId(tabId).classList.add('active');
 }
-function switchSettingsTab(tabId, el) {
-   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-   el.classList.add('active');
-   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-   byId(tabId).classList.add('active');
-}
 
 // --- Gestión de Perfiles ---
 function initProfiles(){
@@ -698,49 +686,35 @@ function switchProfile(name){
 }
 
 
-// =========================================================================
-// APIs ADAPTATIVAS DE EXPORTACIÓN (COMPATIBLES CON PC Y APK - CAPACITOR)
-// =========================================================================
+// --- EXPORTACIÓN UNIVERSAL (WEB SHARE API) ---
 
 async function exportData() {
     const dataStr = JSON.stringify(app);
     const fileName = "Monywissen_Backup_" + today() + ".mnwsn";
+    const blob = new Blob([dataStr], { type: "text/plain" });
 
-    // MÓVIL: Intenta usar los plugins nativos si está en el APK
-    if (window.Capacitor && window.Capacitor.Plugins.Filesystem) {
-        const { Filesystem, Share } = window.Capacitor.Plugins;
-        try {
-            const result = await Filesystem.writeFile({
-                path: fileName,
-                data: dataStr,
-                directory: 'CACHE',
-                encoding: 'utf8'
-            });
-            await Share.share({
-                title: 'Respaldo Monywissen',
-                text: 'Base de datos guardada de forma segura.',
-                url: result.uri
-            });
-        } catch (e) {
-            alert('Error guardando en el teléfono: ' + e.message);
+    // 1. Intenta usar el menú nativo de Android (Compartir)
+    if (navigator.share && navigator.canShare) {
+        const file = new File([blob], fileName, { type: "text/plain" });
+        if (navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    title: 'Respaldo Monywissen',
+                    text: 'Base de datos guardada el ' + today(),
+                    files: [file]
+                });
+                return; 
+            } catch (e) {
+                console.log("Compartir cancelado o no soportado, usando método de descarga local.");
+            }
         }
-    } 
-    // PC: Descarga normal de navegador de escritorio
-    else {
-        const blob = new Blob([dataStr], { type: "text/plain" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
     }
+    
+    // 2. Método tradicional (Descarga al equipo)
+    descargarArchivoPC(blob, fileName);
 }
 
 async function exportarPDF() {
-    // Captura todo el contenedor visual del Dashboard para el reporte
     const elemento = byId('dashboard'); 
     if (!elemento) return alert("No se encontró la vista para imprimir.");
 
@@ -753,35 +727,32 @@ async function exportarPDF() {
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // MÓVIL: Genera binario comprimido y levanta menú de Android para enviar por WhatsApp o guardar
-    if (window.Capacitor && window.Capacitor.Plugins.Filesystem) {
-        try {
-            const pdfBase64 = await html2pdf().set(opciones).from(elemento).outputPdf('datauristring');
-            const base64Data = pdfBase64.split(',')[1];
-            const { Filesystem, Share } = window.Capacitor.Plugins;
-            
-            const result = await Filesystem.writeFile({
-                path: fileName,
-                data: base64Data,
-                directory: 'CACHE'
-            });
-            
-            await Share.share({
-                title: 'Reporte Financiero',
-                text: 'Adjunto reporte de flujo de caja de Monywissen.',
-                url: result.uri
-            });
-        } catch (e) {
-            alert('Error al generar PDF nativo: ' + e.message);
+    // Genera el PDF en memoria
+    const pdfSalida = await html2pdf().set(opciones).from(elemento).output('blob');
+
+    // 1. Intenta abrir el menú nativo de Android para mandar por WhatsApp/Drive
+    if (navigator.share && navigator.canShare) {
+        const file = new File([pdfSalida], fileName, { type: "application/pdf" });
+        if (navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    title: 'Reporte Financiero',
+                    text: 'Adjunto reporte de flujo de caja.',
+                    files: [file]
+                });
+                return;
+            } catch (e) {
+                console.log("Compartir PDF cancelado.");
+            }
         }
-    } 
-    // PC: Procesa la descarga directa del archivo PDF en el navegador
-    else {
-        html2pdf().set(opciones).from(elemento).save();
     }
+    
+    // 2. Método tradicional (Descarga al equipo)
+    descargarArchivoPC(pdfSalida, fileName);
 }
-  
-function fallbackDownload(blob, fileName) {
+
+// Función que fuerza la descarga en navegadores
+function descargarArchivoPC(blob, fileName) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -791,6 +762,7 @@ function fallbackDownload(blob, fileName) {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
 }
+
 
 function importData(input){
   const file = input.files[0];
@@ -852,21 +824,6 @@ function nav(view){
 document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>nav(b.dataset.view));
 
 function toggleDrawer(){byId('drawer').classList.toggle('open');byId('drawerOverlay').classList.toggle('active')}
-function startLongPress(row,type,idx){
-  if(isLongPressing)return;
-  isLongPressing=true;row.classList.add('longpressing');
-  longPressTimer=setTimeout(()=>{openEdit(type,idx);isLongPressing=false;row.classList.remove('longpressing')},100);
-}
-function cancelLongPress(row){
-  if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null}
-  if(isLongPressing){isLongPressing=false;row.classList.remove('longpressing')}
-}
-
-function toggleExpenseType() {
-  const t = byId('f_type_exp') ? byId('f_type_exp').value : 'regular';
-  if (byId('wrapRegular')) byId('wrapRegular').style.display = t === 'regular' ? 'contents' : 'none';
-  if (byId('wrapCashea')) byId('wrapCashea').style.display = t === 'cashea' ? 'contents' : 'none';
-}
 
 
 function closeModal(){byId('modal').classList.remove('active')}
@@ -966,6 +923,7 @@ function openEdit(type,idx){
 }
 
 
+// --- FORMULARIO DE AHORROS / DIVISAS ---
 function savingForm(x={}){
   window.tempSavingImgReceipt = x.receiptImg || x.img || ''; 
   window.tempSavingImgDeliveries = x.deliveryImgs ? [...x.deliveryImgs] : [];
@@ -983,10 +941,10 @@ function savingForm(x={}){
       '<option value="completed"'+(status==='completed'?' selected':'')+'>✅ Completado / En Mano</option>'+
     '</select></div>'+
     
-    // Comprobante con botón de eliminar flotante y visualizador al tocar
+    // Comprobante (Permite seleccionar de galería o cámara)
     '<div style="grid-column: 1 / -1; background: var(--md-surface-variant); padding: 12px; border-radius: 12px;">'+
        '<div class="small" style="font-weight:bold; margin-bottom:8px;">Comprobante de Pago (Transferencia)</div>'+
-       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="pickImage(\'receipt\')">📤 Seleccionar Comprobante</button>'+
+       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="byId(\'inpReceipt\').click()">📤 Seleccionar Comprobante</button>'+
        '<input type="file" id="inpReceipt" accept="image/*" style="display:none" onchange="handleImageUpload(this, \'receipt\')">'+
        '<div id="previewReceipt" style="margin-top:8px; text-align:center; position:relative;">'+
          (window.tempSavingImgReceipt ? 
@@ -997,92 +955,62 @@ function savingForm(x={}){
        '</div>'+
     '</div>'+
     
-    // Múltiples Entregas con botones flotantes individuales
+    // Fotos del Dinero (Fuerza apertura de cámara: capture="environment")
     '<div style="grid-column: 1 / -1; background: var(--md-surface-variant); padding: 12px; border-radius: 12px;">'+
        '<div class="small" style="font-weight:bold; margin-bottom:8px;">Fotos del Dinero Recibido</div>'+
-       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="pickImage(\'receipt\')">📸 Agregar Foto de Entrega</button>'+
-       '<input type="file" id="inpDelivery" accept="image/*" style="display:none" onchange="handleImageUpload(this, \'delivery\')">'+
+       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="byId(\'inpDelivery\').click()">📸 Tomar Foto de Entrega</button>'+
+       '<input type="file" id="inpDelivery" accept="image/*" capture="environment" style="display:none" onchange="handleImageUpload(this, \'delivery\')">'+
        '<div id="previewDelivery" style="display:flex; gap:12px; margin-top:8px; overflow-x:auto; padding: 6px 0;"></div>'+
        '<div class="small" style="color:var(--md-outline); margin-top:6px; text-align:center;">* Toca la foto para ampliarla • Toca la ✕ para eliminarla</div>'+
     '</div>'+
   '</div>';
 }
 
-// --- MOTOR DE CAPTURA HÍBRIDO (PC / APK) ---
-
-async function pickImage(type) {
-    // 1. SI ESTAMOS EN EL APK (Usa la Cámara Nativa)
-    if (window.Capacitor && window.Capacitor.Plugins.Camera) {
-        const { Camera } = window.Capacitor.Plugins;
-        try {
-            const image = await Camera.getPhoto({
-                quality: 70,
-                allowEditing: false,
-                resultType: 'dataUrl', // Nos devuelve el Base64 directo
-                source: 'PROMPT',      // Pregunta: ¿Cámara o Galería?
-                promptLabelHeader: 'Añadir comprobante',
-                promptLabelPhoto: 'Elegir de Galería',
-                promptLabelPicture: 'Tomar Foto ahora'
-            });
-            
-            // Enviamos el resultado directamente al procesador de imagen
-            processCapturedImage(image.dataUrl, type);
-        } catch (e) {
-            console.log("Usuario canceló la cámara");
-        }
-    } 
-    // 2. SI ESTAMOS EN PC (Usa el input oculto)
-    else {
-        const inputId = type === 'receipt' ? 'inpReceipt' : 'inpDelivery';
-        document.getElementById(inputId).click();
-    }
-}
-
-// Esta función es el "puente" para los inputs de PC
+// --- PROCESADOR DE IMAGEN (COMPRESIÓN LOCAL) ---
 function handleImageUpload(input, type) {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => processCapturedImage(e.target.result, type);
-    reader.readAsDataURL(file);
-    input.value = ''; // Limpiar para re-uso
-}
-
-// --- PROCESADOR ÚNICO DE IMAGEN (COMPRESIÓN) ---
-function processCapturedImage(base64Src, type) {
-    if (type === 'receipt') byId('previewReceipt').innerHTML = '<span class="small">Procesando...</span>';
     
-    const img = new Image();
-    img.onload = function() {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
-        let width = img.width; let height = img.height;
+    if (type === 'receipt') byId('previewReceipt').innerHTML = '<span class="small">Comprimiendo...</span>';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
+            let width = img.width; let height = img.height;
 
-        if (width > height) {
-            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-        } else {
-            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+            if (width > height) {
+                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+            } else {
+                if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+            }
+            canvas.width = width; canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Comprime a JPEG
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.6); 
+            
+            if (type === 'receipt') {
+                window.tempSavingImgReceipt = dataUrl;
+                byId('previewReceipt').innerHTML = `
+                    <div style="position:relative; display:inline-block;">
+                       <img src="${dataUrl}" onclick="viewImgDetail(this.src)" style="max-height:120px; border-radius:8px; border:1px solid var(--md-outline-variant); cursor:pointer;">
+                       <div onclick="removeReceiptImg()" style="position:absolute; top:-6px; right:-6px; background:var(--md-error); color:white; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);">✕</div>
+                    </div>`;
+            } else if (type === 'delivery') {
+                window.tempSavingImgDeliveries = window.tempSavingImgDeliveries || [];
+                window.tempSavingImgDeliveries.push(dataUrl);
+                renderDeliveryPreviews();
+            }
         }
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
-        
-        if (type === 'receipt') {
-            window.tempSavingImgReceipt = compressedBase64;
-            byId('previewReceipt').innerHTML = `
-                <div style="position:relative; display:inline-block;">
-                   <img src="${compressedBase64}" onclick="viewImgDetail(this.src)" style="max-height:120px; border-radius:8px; border:1px solid var(--md-outline-variant); cursor:pointer;">
-                   <div onclick="removeReceiptImg()" style="position:absolute; top:-6px; right:-6px; background:var(--md-error); color:white; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);">✕</div>
-                </div>`;
-        } else {
-            window.tempSavingImgDeliveries = window.tempSavingImgDeliveries || [];
-            window.tempSavingImgDeliveries.push(compressedBase64);
-            renderDeliveryPreviews();
-        }
-    };
-    img.src = base64Src;
+        img.src = e.target.result;
+    }
+    reader.readAsDataURL(file);
+    input.value = ''; // Limpia el input por si quieres repetir la foto
 }
 
 
@@ -1124,10 +1052,7 @@ function closeImgViewer() {
     byId('imgViewerModal').classList.remove('active');
 }
 
-function removeDeliveryImg(idx) {
-    window.tempSavingImgDeliveries.splice(idx, 1);
-    renderDeliveryPreviews();
-}
+
 function saveModal(){
   const p=prof(),t=modalType,i=modalIndex;
   if(!t)return;
@@ -1700,7 +1625,6 @@ byId('planEnd').value = d.toISOString().slice(0, 10);
 }
 }
 
-// Inyección Inicial
 function initUI() {
   initProfiles();
   setTodayIfEmpty();
@@ -1710,31 +1634,29 @@ function initUI() {
   render();
   nav('dashboard');
   
-  // Le damos medio segundo a las librerías para cargar e intentamos pintar la gráfica
   setTimeout(updateChart, 500); 
-  
   checkWeeklyBackup(); 
+
+  // --- CENTINELA DE LIBRERÍAS (Antibloqueo de Interfaz) ---
+  // Revisa cada segundo si las herramientas lograron cargar.
+  let libCheckCount = 0;
+  const libCheckInterval = setInterval(() => {
+      libCheckCount++;
+      
+      const btnPdf = byId('btnExportPDF');
+      if (btnPdf) btnPdf.style.display = (typeof html2pdf !== 'undefined') ? '' : 'none';
+      
+      const btnCrop = byId('btnChangeProfilePic');
+      if (btnCrop) btnCrop.style.display = (typeof Cropper !== 'undefined') ? '' : 'none';
+      
+      const chartWrap = byId('chartSectionWrapper');
+      if (chartWrap) chartWrap.style.display = (typeof Chart !== 'undefined') ? '' : 'none';
+      
+      // A los 4 segundos deja de revisar (ya se definió si hubo éxito o fallo definitivo)
+      if (libCheckCount >= 4) clearInterval(libCheckInterval);
+  }, 1000);
 }
 
-function normalizeRowData(item, keys) {
-const out = {};
-keys.forEach(k => out[k] = item[k] ?? '');
-return out;
-}
-function refreshAll() {
-saveApp();
-runPlan();
-render();
-}
-function addIncomeDefault() {
-openCreate('income');
-}
-function addExpenseDefault() {
-openCreate('expense');
-}
-function addDebtDefault() {
-openCreate('debt');
-}
 
 function closeDrawerOnSelect() {
   if (byId('drawer').classList.contains('open')) toggleDrawer();
