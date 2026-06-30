@@ -986,7 +986,7 @@ function savingForm(x={}){
     // Comprobante con botón de eliminar flotante y visualizador al tocar
     '<div style="grid-column: 1 / -1; background: var(--md-surface-variant); padding: 12px; border-radius: 12px;">'+
        '<div class="small" style="font-weight:bold; margin-bottom:8px;">Comprobante de Pago (Transferencia)</div>'+
-       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="byId(\'inpReceipt\').click()">📤 Seleccionar Comprobante</button>'+
+       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="pickImage(\'receipt\')">📤 Seleccionar Comprobante</button>'+
        '<input type="file" id="inpReceipt" accept="image/*" style="display:none" onchange="handleImageUpload(this, \'receipt\')">'+
        '<div id="previewReceipt" style="margin-top:8px; text-align:center; position:relative;">'+
          (window.tempSavingImgReceipt ? 
@@ -1000,7 +1000,7 @@ function savingForm(x={}){
     // Múltiples Entregas con botones flotantes individuales
     '<div style="grid-column: 1 / -1; background: var(--md-surface-variant); padding: 12px; border-radius: 12px;">'+
        '<div class="small" style="font-weight:bold; margin-bottom:8px;">Fotos del Dinero Recibido</div>'+
-       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="byId(\'inpDelivery\').click()">📸 Agregar Foto de Entrega</button>'+
+       '<button class="btn" style="width:100%; border:1px dashed var(--md-primary); color:var(--md-primary); background:transparent;" onclick="pickImage(\'receipt\')">📸 Agregar Foto de Entrega</button>'+
        '<input type="file" id="inpDelivery" accept="image/*" style="display:none" onchange="handleImageUpload(this, \'delivery\')">'+
        '<div id="previewDelivery" style="display:flex; gap:12px; margin-top:8px; overflow-x:auto; padding: 6px 0;"></div>'+
        '<div class="small" style="color:var(--md-outline); margin-top:6px; text-align:center;">* Toca la foto para ampliarla • Toca la ✕ para eliminarla</div>'+
@@ -1008,50 +1008,83 @@ function savingForm(x={}){
   '</div>';
 }
 
+// --- MOTOR DE CAPTURA HÍBRIDO (PC / APK) ---
+
+async function pickImage(type) {
+    // 1. SI ESTAMOS EN EL APK (Usa la Cámara Nativa)
+    if (window.Capacitor && window.Capacitor.Plugins.Camera) {
+        const { Camera } = window.Capacitor.Plugins;
+        try {
+            const image = await Camera.getPhoto({
+                quality: 70,
+                allowEditing: false,
+                resultType: 'dataUrl', // Nos devuelve el Base64 directo
+                source: 'PROMPT',      // Pregunta: ¿Cámara o Galería?
+                promptLabelHeader: 'Añadir comprobante',
+                promptLabelPhoto: 'Elegir de Galería',
+                promptLabelPicture: 'Tomar Foto ahora'
+            });
+            
+            // Enviamos el resultado directamente al procesador de imagen
+            processCapturedImage(image.dataUrl, type);
+        } catch (e) {
+            console.log("Usuario canceló la cámara");
+        }
+    } 
+    // 2. SI ESTAMOS EN PC (Usa el input oculto)
+    else {
+        const inputId = type === 'receipt' ? 'inpReceipt' : 'inpDelivery';
+        document.getElementById(inputId).click();
+    }
+}
+
+// Esta función es el "puente" para los inputs de PC
 function handleImageUpload(input, type) {
     const file = input.files[0];
     if (!file) return;
-    
-    if (type === 'receipt') byId('previewReceipt').innerHTML = '<span class="small">Comprimiendo...</span>';
-    
     const reader = new FileReader();
-    reader.onload = function(e) {
-        const img = new Image();
-        img.onload = function() {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 800; const MAX_HEIGHT = 800; // Un poco más de resolución para ver detalles al ampliar
-            let width = img.width; let height = img.height;
-
-            if (width > height) {
-                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-            } else {
-                if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
-            }
-            canvas.width = width; canvas.height = height;
-            
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.6); 
-            
-            if (type === 'receipt') {
-                window.tempSavingImgReceipt = dataUrl;
-                byId('previewReceipt').innerHTML = `
-                    <div style="position:relative; display:inline-block;">
-                       <img src="${dataUrl}" onclick="viewImgDetail(this.src)" style="max-height:120px; border-radius:8px; border:1px solid var(--md-outline-variant); cursor:pointer;">
-                       <div onclick="removeReceiptImg()" style="position:absolute; top:-6px; right:-6px; background:var(--md-error); color:white; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);">✕</div>
-                    </div>`;
-            } else if (type === 'delivery') {
-                window.tempSavingImgDeliveries = window.tempSavingImgDeliveries || [];
-                window.tempSavingImgDeliveries.push(dataUrl);
-                renderDeliveryPreviews();
-            }
-        }
-        img.src = e.target.result;
-    }
+    reader.onload = (e) => processCapturedImage(e.target.result, type);
     reader.readAsDataURL(file);
-    input.value = '';
+    input.value = ''; // Limpiar para re-uso
 }
+
+// --- PROCESADOR ÚNICO DE IMAGEN (COMPRESIÓN) ---
+function processCapturedImage(base64Src, type) {
+    if (type === 'receipt') byId('previewReceipt').innerHTML = '<span class="small">Procesando...</span>';
+    
+    const img = new Image();
+    img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
+        let width = img.width; let height = img.height;
+
+        if (width > height) {
+            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+        } else {
+            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+        }
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+        
+        if (type === 'receipt') {
+            window.tempSavingImgReceipt = compressedBase64;
+            byId('previewReceipt').innerHTML = `
+                <div style="position:relative; display:inline-block;">
+                   <img src="${compressedBase64}" onclick="viewImgDetail(this.src)" style="max-height:120px; border-radius:8px; border:1px solid var(--md-outline-variant); cursor:pointer;">
+                   <div onclick="removeReceiptImg()" style="position:absolute; top:-6px; right:-6px; background:var(--md-error); color:white; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);">✕</div>
+                </div>`;
+        } else {
+            window.tempSavingImgDeliveries = window.tempSavingImgDeliveries || [];
+            window.tempSavingImgDeliveries.push(compressedBase64);
+            renderDeliveryPreviews();
+        }
+    };
+    img.src = base64Src;
+}
+
 
 function renderDeliveryPreviews() {
     const container = byId('previewDelivery');
