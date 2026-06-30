@@ -133,41 +133,46 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 }
 </style>
 
-<link href="./js/cropper.min.css" rel="stylesheet" onerror="this.href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css'">
+  <link href="./js/cropper.min.css" rel="stylesheet" onerror="this.href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css'">
 
-<script src="./js/chart.js"></script>
-<script>
-    // Si falló el archivo local, forzamos la descarga de la nube antes de seguir
-    if (typeof Chart === 'undefined') {
-        document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js"><\\/script>');
-    }
-</script>
+  <script src="./js/chart.js"></script>
+  <script>
+      if (typeof Chart === 'undefined') {
+          document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js"><\\/script>');
+      }
+  </script>
 
-<script src="./js/hammer.min.js"></script>
-<script>
-    if (typeof Hammer === 'undefined') {
-        document.write('<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"><\\/script>');
-    }
-</script>
+  <script src="./js/hammer.min.js"></script>
+  <script>
+      if (typeof Hammer === 'undefined') {
+          document.write('<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"><\\/script>');
+      }
+  </script>
 
-<script src="./js/chartjs-plugin-zoom.min.js"></script>
-<script>
-    // El plugin no crea una variable global, pero lo intentamos cargar si Chart no tiene la propiedad zoom
-    setTimeout(function() {
-        if (typeof Chart !== 'undefined' && !Chart.defaults.plugins.zoom) {
-            let s = document.createElement('script');
-            s.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js';
-            document.head.appendChild(s);
-        }
-    }, 500);
-</script>
+  <script src="./js/chartjs-plugin-zoom.min.js"></script>
+  <script>
+      setTimeout(function() {
+          if (typeof Chart !== 'undefined' && !Chart.defaults.plugins.zoom) {
+              let s = document.createElement('script');
+              s.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js';
+              document.head.appendChild(s);
+          }
+      }, 500);
+  </script>
 
-<script src="./js/cropper.min.js"></script>
-<script>
-    if (typeof Cropper === 'undefined') {
-        document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"><\\/script>');
-    }
-</script>
+  <script src="./js/cropper.min.js"></script>
+  <script>
+      if (typeof Cropper === 'undefined') {
+          document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"><\\/script>');
+      }
+  </script>
+
+  <script src="./js/html2pdf.bundle.min.js"></script>
+  <script>
+      if (typeof html2pdf === 'undefined') {
+          document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\\/script>');
+      }
+  </script>
 </head>
 <body>
 
@@ -250,29 +255,30 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
           </div>
       </div>
       <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
-      
-      <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
-      
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-         <div class="heading" style="font-size:14px; margin:0;">Gráfico de Proyección</div>
-         <div class="small" style="color:var(--md-primary);">💡 Usa 2 dedos para hacer zoom</div>
-      </div>
-      
-      <div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; gap:8px;">
-          <div><label style="font-size:10px;">Desde</label><input type="date" id="chartStart" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()"></div>
-          <div><label style="font-size:10px;">Hasta</label><input type="date" id="chartEnd" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()"></div>
-          <div>
-			  <label style="font-size:10px;">Agrupar por</label>
-			  <select id="chartGroup" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()">
-				 <option value="day">Día</option>
-				 <option value="week" selected>Semana</option> <option value="month">Mes</option>
-			  </select>
-			</div>
-      </div>
-      
-      <div style="height: 250px; width:100%;">
-          <canvas id="financeChart"></canvas>
-      </div>
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+       <div class="heading" style="font-size:14px; margin:0;">Gráfico de Proyección</div>
+       <div style="display:flex; gap:8px; align-items:center;">
+          
+          <button class="btn icon" onclick="exportarPDF()" title="Exportar Reporte a PDF" style="padding:6px; background:var(--md-surface-variant); border-radius:8px;">📄</button>
+          
+          <div class="small" style="color:var(--md-primary);">💡 Usa 2 dedos para hacer zoom</div>
+       </div>
+    </div>
+    
+    <div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; gap:8px;">
+        <div><label style="font-size:10px;">Desde</label><input type="date" id="chartStart" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()"></div>
+        <div><label style="font-size:10px;">Hasta</label><input type="date" id="chartEnd" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()"></div>
+        <div><label style="font-size:10px;">Agrupar por</label><select id="chartGroup" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()">
+           <option value="day">Día</option>
+           <option value="week" selected>Semana</option>
+           <option value="month">Mes</option>
+        </select></div>
+    </div>
+    
+    <div style="height: 250px; width:100%;">
+        <canvas id="financeChart"></canvas>
+    </div>
     </div>
 
     <div class="grid grid2">
@@ -692,32 +698,89 @@ function switchProfile(name){
 }
 
 
+// =========================================================================
+// APIs ADAPTATIVAS DE EXPORTACIÓN (COMPATIBLES CON PC Y APK - CAPACITOR)
+// =========================================================================
 
-function exportData() {
+async function exportData() {
     const dataStr = JSON.stringify(app);
     const fileName = "Monywissen_Backup_" + today() + ".mnwsn";
-    const blob = new Blob([dataStr], { type: "text/plain" });
 
-    // Intento 1: Usar el menú de Compartir nativo de Android (Ideal para APK)
-    if (navigator.share && navigator.canShare) {
-        const file = new File([blob], fileName, { type: "text/plain" });
-        if (navigator.canShare({ files: [file] })) {
-            navigator.share({
-                title: 'Respaldo Monywissen',
-                text: 'Base de datos guardada el ' + today(),
-                files: [file]
-            }).catch(e => {
-                console.log("Compartir cancelado o falló, usando método tradicional.");
-                fallbackDownload(blob, fileName);
+    // MÓVIL: Intenta usar los plugins nativos si está en el APK
+    if (window.Capacitor && window.Capacitor.Plugins.Filesystem) {
+        const { Filesystem, Share } = window.Capacitor.Plugins;
+        try {
+            const result = await Filesystem.writeFile({
+                path: fileName,
+                data: dataStr,
+                directory: 'CACHE',
+                encoding: 'utf8'
             });
-            return;
+            await Share.share({
+                title: 'Respaldo Monywissen',
+                text: 'Base de datos guardada de forma segura.',
+                url: result.uri
+            });
+        } catch (e) {
+            alert('Error guardando en el teléfono: ' + e.message);
         }
+    } 
+    // PC: Descarga normal de navegador de escritorio
+    else {
+        const blob = new Blob([dataStr], { type: "text/plain" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
     }
-    
-    // Intento 2: Método web tradicional (Para PC)
-    fallbackDownload(blob, fileName);
 }
 
+async function exportarPDF() {
+    // Captura todo el contenedor visual del Dashboard para el reporte
+    const elemento = byId('dashboard'); 
+    if (!elemento) return alert("No se encontró la vista para imprimir.");
+
+    const fileName = 'Reporte_Monywissen_' + today() + '.pdf';
+    const opciones = {
+        margin:       10,
+        filename:     fileName,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // MÓVIL: Genera binario comprimido y levanta menú de Android para enviar por WhatsApp o guardar
+    if (window.Capacitor && window.Capacitor.Plugins.Filesystem) {
+        try {
+            const pdfBase64 = await html2pdf().set(opciones).from(elemento).outputPdf('datauristring');
+            const base64Data = pdfBase64.split(',')[1];
+            const { Filesystem, Share } = window.Capacitor.Plugins;
+            
+            const result = await Filesystem.writeFile({
+                path: fileName,
+                data: base64Data,
+                directory: 'CACHE'
+            });
+            
+            await Share.share({
+                title: 'Reporte Financiero',
+                text: 'Adjunto reporte de flujo de caja de Monywissen.',
+                url: result.uri
+            });
+        } catch (e) {
+            alert('Error al generar PDF nativo: ' + e.message);
+        }
+    } 
+    // PC: Procesa la descarga directa del archivo PDF en el navegador
+    else {
+        html2pdf().set(opciones).from(elemento).save();
+    }
+}
+  
 function fallbackDownload(blob, fileName) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
