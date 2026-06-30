@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main ] # Cambia esto a "master" si tu rama principal se llama master
+    branches: [ main ]
 
 jobs:
   build:
@@ -16,7 +16,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # Quitamos la línea de caché para que no pida el archivo .lock
 
       - name: Install Dependencies
         run: npm install
@@ -31,13 +30,18 @@ jobs:
       - name: Add Android Platform
         run: npx cap add android
 
-      # 2. Generar automáticamente los íconos y la pantalla de carga (Splash) desde tu SVG
+      # [OPCIÓN 2] Modificar estilos para forzar Pantalla Completa nativa
+      - name: Force Native Fullscreen Mode
+        run: |
+          sed -i 's/<item name="windowNoTitle">true<\/item>/<item name="windowNoTitle">true<\/item>\n        <item name="android:windowFullscreen">true<\/item>/' android/app/src/main/res/values/styles.xml
+
+      # 2. Generar automáticamente los íconos desde tu carpeta assets/
       - name: Generate App Icons and Splash Screens
         run: |
           npm install -D @capacitor/assets
           npx @capacitor/assets generate --android --iconBackgroundColor '#ffffff' --splashBackgroundColor '#ffffff'
 
-      # 3. Sincronizamos los nuevos íconos generados con el proyecto final
+      # 3. Sincronizamos los plugins de compartir y archivos con el proyecto Android
       - name: Sync Capacitor Project
         run: npx cap sync android
 
