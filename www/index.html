@@ -174,10 +174,8 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
     <div class="title" id="topTitle">Dashboard</div>
   </div>
   <div class="actions" style="align-items:center; gap:10px;">
-     <!-- Botón global de PDF -->
-    <button class="btn icon" style="padding:6px; min-height:0; font-size:18px; width:auto; border:none; background:transparent;" onclick="exportarPDF()" title="Exportar Reporte a PDF">🖨️</button>
+     <button id="btnTopPrint" class="btn icon" style="padding:6px; min-height:0; font-size:18px; width:auto; border:none; background:transparent;" onclick="exportarPDF()" title="Exportar Reporte a PDF">🖨️</button>
      
-     <!-- Avatar del Perfil Activo -->
      <div class="avatar" id="topAvatar" onclick="openProfileModal()" title="Gestionar Perfiles">--</div>
   </div>
 </div>
@@ -254,7 +252,6 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 			   <div class="heading" style="font-size:14px; margin:0;">Gráfico de Proyección</div>
 			   <div style="display:flex; gap:8px; align-items:center;">
 				  
-				  <button id="btnExportPDF" class="btn icon" onclick="exportarPDF()" title="Exportar Reporte a PDF" style="padding:6px; background:var(--md-surface-variant); border-radius:8px; display:none;">🖨️</button>
 				  
 				  <div class="small" style="color:var(--md-primary);">💡 Usa 2 dedos para hacer zoom</div>
 			   </div>
@@ -735,12 +732,23 @@ async function triggerImageCapture(type) {
 }
 
 function nav(view){
-  const titles={dashboard:'Dashboard',calendar:'Cronograma',income:'Ingresos',expenses:'Gastos',debts:'Deudas',savings:'Ahorros',settings:'Ajustes'};
+  const titles={dashboard:'Dashboard',calendar:'Cronograma',income:'Ingresos',expenses:'Gastos',transactions:'Únicas',debts:'Deudas',savings:'Ahorros',settings:'Ajustes'};
   byId('topTitle').textContent=titles[view]||'Monywissen';
+  
+  // Cambiar botones del menú
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  
+  // Cambiar pantallas
   document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===view));
+  
+  // LÓGICA DE IMPRESORA: Solo mostrar en Dashboard y Cronograma
+  const btnPrint = byId('btnTopPrint');
+  if (btnPrint) {
+      btnPrint.style.display = (view === 'dashboard' || view === 'calendar') ? 'inline-flex' : 'none';
+  }
+  
   render();
-  if(byId('drawer').classList.contains('open'))toggleDrawer();
+  if(byId('drawer').classList.contains('open')) toggleDrawer();
 }
 
 document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>nav(b.dataset.view));
@@ -996,34 +1004,60 @@ function removeDeliveryImg(idx) {
 
 async function exportarPDF() {
     if (typeof html2pdf === 'undefined') return alert("El motor de renderizado PDF no está listo.");
-    const elemento = byId('dashboard'); 
-    if (!elemento) return alert("Contenedor visual no localizado.");
+    
+    // 1. Identificar exactamente qué pantalla estamos viendo
+    const activeSection = document.querySelector('.section.active');
+    if (!activeSection) return;
+    const viewId = activeSection.id;
+    
+    if (viewId !== 'dashboard' && viewId !== 'calendar') {
+        return alert("La exportación a PDF solo está habilitada para el Dashboard y el Cronograma.");
+    }
 
-    const fileName = 'Reporte_Monywissen_' + today() + '.pdf';
+    const elemento = byId(viewId); 
+    const fileName = `Monywissen_${viewId.toUpperCase()}_${today()}.pdf`;
+    
     const opciones = {
-        margin:       10,
+        margin:       [10, 5, 10, 5], // Ajustamos márgenes para aprovechar el papel
         filename:     fileName,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
             scale: 2, 
             useCORS: true,
-            // SOLUCIÓN AL CRASH: Ignoramos los canvas ocultos o de 0x0
             ignoreElements: (node) => { return (node.tagName === 'CANVAS' && (node.width === 0 || node.height === 0)); }
         },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        // Si es calendario lo pone Acostado (landscape), si es Dashboard Normal (portrait)
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: viewId === 'calendar' ? 'landscape' : 'portrait' }
     };
 
+    // 2. TRUCO DE MAGIA PARA EL CRONOGRAMA:
+    // El motor falla si el calendario tiene scroll lateral. Se lo quitamos por un segundo.
+    const wrapCal = byId('calendarWrap');
+    const wrapList = byId('listWrap');
+    const oldCalOverflow = wrapCal ? wrapCal.style.overflowX : '';
+    const oldListOverflow = wrapList ? wrapList.style.overflowX : '';
+    
+    if(wrapCal) wrapCal.style.overflowX = 'visible';
+    if(wrapList) wrapList.style.overflowX = 'visible';
+
+    // 3. Generar y Exportar
     if (window.Capacitor && window.Capacitor.isPluginAvailable('Filesystem')) {
         try {
             const pdfDataUri = await html2pdf().set(opciones).from(elemento).outputPdf('datauristring');
             const base64RawData = pdfDataUri.split(',')[1];
             const { Filesystem, Share } = window.Capacitor.Plugins;
             const writeResult = await Filesystem.writeFile({ path: fileName, data: base64RawData, directory: 'CACHE' });
-            await Share.share({ title: 'Reporte Financiero', text: 'Flujo de caja generado desde la app.', url: writeResult.uri });
-        } catch (e) { alert('Error nativo PDF: ' + e.message); }
+            await Share.share({ title: `Reporte ${viewId}`, text: 'Reporte financiero generado desde Monywissen.', url: writeResult.uri });
+        } catch (e) { 
+            alert('Error nativo PDF: ' + e.message); 
+        }
     } else {
-        html2pdf().set(opciones).from(elemento).save();
+        await html2pdf().set(opciones).from(elemento).save();
     }
+
+    // 4. Devolvemos el scroll lateral para que lo sigas usando en tu celular
+    if(wrapCal) wrapCal.style.overflowX = oldCalOverflow;
+    if(wrapList) wrapList.style.overflowX = oldListOverflow;
 }
 
 // Exporta toda la App o solo el Perfil actual
