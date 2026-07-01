@@ -35,11 +35,11 @@ jobs:
         run: |
           sed -i 's/<item name="windowNoTitle">true<\/item>/<item name="windowNoTitle">true<\/item>\n        <item name="android:windowFullscreen">true<\/item>/' android/app/src/main/res/values/styles.xml
 
-      # [NUEVO PASO DE PERMISOS] Inyectar los permisos de Cámara y Galería en el AndroidManifest
-      - name: Inject Android Camera and Storage Permissions
+      # [NUEVO PASO DE PERMISOS] Inyectar Cámara, Galería y Notificaciones
+      - name: Inject Android Permissions
         run: |
-          sed -i 's/<application/    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" \/>\n    <application/' android/app/src/main/nav/../main/AndroidManifest.xml || sed -i 's/<application/    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" \/>\n    <application/' android/app/src/main/AndroidManifest.xml
-
+          sed -i 's/<application/    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" \/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" \/>\n    <application/' android/app/src/main/AndroidManifest.xml
+        
       # 2. Generar automáticamente los íconos desde tu carpeta assets/
       - name: Generate App Icons and Splash Screens
         run: |
