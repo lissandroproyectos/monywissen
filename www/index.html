@@ -156,6 +156,9 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
           if (typeof Hammer === 'undefined') loadAsync('https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js');
           if (typeof Cropper === 'undefined') loadAsync('https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js');
           if (typeof html2pdf === 'undefined') loadAsync('https://unpkg.com/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js');
+		  
+		  if (typeof QRCode === 'undefined') loadAsync('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js');
+          if (typeof Html5Qrcode === 'undefined') loadAsync('https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js');
           
           // El plugin de zoom se carga 1 segundo después por si acaso
           setTimeout(function() {
@@ -194,10 +197,10 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <button class="navbtn" data-view="debts">Deudas</button>
   <button class="navbtn" data-view="savings">Ahorros</button>
   <button class="navbtn" data-view="transactions">Transaccion</button>
+  <button class="navbtn" data-view="shared">Compartidas</button>
   <button class="navbtn" data-view="settings">Ajustes</button>
 </div>
 <div class="content">
-  
   <div class="section" id="calendar">
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -371,10 +374,40 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
     </div>
   </div>
   
+  <div class="section" id="shared">
+    <div id="sharedListView">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+          <div class="heading" style="margin:0;">Cuentas Compartidas</div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn" onclick="document.getElementById('importSharedFile').click()" style="min-height:auto; padding:8px 12px; font-size:13px;">⬇️ Importar</button>
+            <button class="btn primary" onclick="openCreateSharedAccount()" style="min-height:auto; padding:8px 16px;">+ Nueva</button>
+          </div>
+        </div>
+        <div class="small" style="margin-bottom:16px;">Lleva el control de gastos grupales, comidas o compras compartidas con amigos y socios sin enredos.</div>
+        <input id="importSharedFile" type="file" accept=".mnwg,.json,.txt" style="display:none" onchange="importSharedAccount(this)">
+        
+        <!-- Contenedor de la lista que faltaba -->
+        <div id="sharedAccountsList"></div>
+      </div>
+    </div>
+    
+    <!-- Contenedor Dinámico para el Detalle del Grupo que causaba el error 'null' -->
+    <div id="sharedDetailView" style="display:none;"></div>
+  </div>
+  
   <div class="section" id="settings">
     <div class="card">
-      <div class="heading">Reglas de Proyección</div>
-      <div class="small" style="margin-bottom:16px;">Ajusta las variables de tu flujo de caja proyectado.</div>
+      <div class="heading">Ajustes del Sistema</div>
+      
+      <div class="tabs">
+         <div class="tab active" onclick="switchSettingsTab('tab-rules', this)">⚙️ Reglas</div>
+         <div class="tab" onclick="switchSettingsTab('tab-custom-debts', this)">🏷️ Tipos de Deuda</div>
+         <div class="tab" onclick="switchSettingsTab('tab-db', this)">💾 Respaldo</div>
+      </div>
+
+      <div id="tab-rules" class="tab-content active">
+         <div class="small" style="margin-bottom:16px;">Ajusta las variables de tu flujo de caja proyectado.</div>
          <div class="grid grid2">
             <div><label>Inicio del Plan</label><input id="planStart" type="date" required></div>
             <div><label>Fin del Plan</label><input id="planEnd" type="date" required></div>
@@ -387,7 +420,35 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
             <div><label>Inicio base (Dinero Hoy)</label><input id="openingBalance" type="number" value="0" required></div>
             <div><label>Gasto libre (Opcional)</label><input id="freeSpend" type="number" value="0" required></div>
          </div>
+		 <div style="background:var(--md-surface-variant); padding:12px; border-radius:12px; margin-top:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+             <div>
+                 <div style="font-weight:bold; font-size:14px; color:var(--md-primary);">🔔 Notificaciones Diarias</div>
+                 <div class="small">Recibe recordatorios de tus pagos.</div>
+             </div>
+             <div style="display:flex; align-items:center; gap:8px;">
+                 <input type="time" id="notifTimeInput" value="08:00" style="padding:6px; border-radius:8px; border:1px solid var(--md-outline-variant); font-family:monospace;">
+                 <button class="btn primary" onclick="setupNotifications()" style="min-height:0; padding:6px 12px; width:auto; font-size:12px;">Activar / Guardar</button>
+             </div>
+         </div>
          <button class="btn primary" style="margin-top:16px;width:100%" onclick="saveSettings()">Guardar reglas</button>
+      </div>
+
+      <div id="tab-custom-debts" class="tab-content">
+         <div class="small" style="margin-bottom:12px">Crea tipos de deuda inteligentes (Ej. 'San', 'Prestamista') con sus propias reglas, campos y colores.</div>
+         <button class="btn primary" style="width:100%; margin-bottom:16px; background:var(--md-on-surface); border-color:var(--md-on-surface);" onclick="promptCreateCustomDebt()">+ Nuevo Tipo de Deuda</button>
+         <div id="customDebtsList"></div>
+      </div>
+
+      <div id="tab-db" class="tab-content">
+         <div class="small" style="margin-bottom:12px">Respalda, restaura o comparte toda tu información financiera y perfiles.</div>
+         <div class="grid grid2" style="gap:8px;">
+            <button class="btn primary" onclick="exportData(true)" style="background:#0f9d58; border-color:#0f9d58; grid-column:1/-1;">📤 Compartir este Perfil</button>
+            <button class="btn" onclick="exportData(false)">💾 Exportar Toda la App</button>
+            <button class="btn" onclick="document.getElementById('importFileSettings').click()">📥 Importar (.mnwsn)</button>
+         </div>
+         <input id="importFileSettings" type="file" accept=".mnwsn" style="display:none" onchange="importData(this)">
+      </div>
+
     </div>
   </div>
 </div>
@@ -420,7 +481,10 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div class="heading" style="margin:0;">Tu Perfil</div>
-      <button class="btn icon" onclick="closeProfileModal()" style="font-size:22px; font-weight:bold; padding:0; border:none;">✕</button>
+      <div style="display:flex; gap:8px;">
+         <button class="btn icon danger" onclick="deleteProfile()" style="font-size:18px; padding:0; border:none; background:transparent;" title="Eliminar Perfil">⚙️</button>
+         <button class="btn icon" onclick="closeProfileModal()" style="font-size:22px; font-weight:bold; padding:0; border:none; background:transparent;">✕</button>
+      </div>
     </div>
     
     <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:24px;">
@@ -429,14 +493,44 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
        
        <div style="display:flex; align-items:center; gap:8px; cursor:pointer;" onclick="renameProfile()" title="Toca para renombrar">
          <div id="lblCurrentProfileName" style="font-size:24px; font-weight:900; color:var(--md-on-surface);"></div>
-         <span style="font-size:16px;"></span>
+       </div>
+       
+       <div style="margin-top:24px; width:100%; max-width:280px;">
+            <div style="display:flex; background:var(--md-surface-variant); border-radius:12px; padding:4px; margin-bottom:12px;">
+                <div id="tabContactCard" style="flex:1; text-align:center; padding:6px; border-radius:8px; font-size:12px; font-weight:bold; background:var(--md-surface); color:var(--md-primary); box-shadow:0 1px 3px rgba(0,0,0,0.1); cursor:pointer; transition:all 0.2s;" onclick="toggleProfileCards('contact')">🪪 Contacto</div>
+                <div id="tabPaymentCard" style="flex:1; text-align:center; padding:6px; border-radius:8px; font-size:12px; font-weight:bold; color:var(--md-on-surface-variant); cursor:pointer; transition:all 0.2s;" onclick="toggleProfileCards('payment')">💳 Mis Cobros</div>
+            </div>
+
+            <div id="viewContactCard" style="background:var(--md-surface); border:1px solid var(--md-outline-variant); border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                <div style="background:var(--md-primary-container); padding:10px 16px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:12px; font-weight:bold; color:var(--md-primary);">Identidad en Grupos</div>
+                    <button class="btn icon" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:18px; color:var(--md-primary);" onclick="showMyQR()" title="Mostrar mi QR">🔲</button>
+                </div>
+                <div style="padding:12px 16px; display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--md-surface-variant); border-radius:8px; cursor:pointer;" onclick="renameAlias()" title="Editar Alias">
+                        <div style="display:flex; gap:8px; align-items:center;"><span style="font-size:14px; opacity:0.6;">👤</span><div id="lblCurrentAlias" style="font-size:14px; font-weight:bold; color:var(--md-on-surface);"></div></div>
+                    </div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--md-surface-variant); border-radius:8px; cursor:pointer;" onclick="editPhone()" title="Editar Teléfono">
+                        <div style="display:flex; gap:8px; align-items:center;"><span style="font-size:14px; opacity:0.6;">📱</span><div id="lblCurrentPhone" style="font-size:14px; font-weight:bold; color:var(--md-on-surface);"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="viewPaymentCard" style="display:none; background:var(--md-surface); border:1px solid var(--md-outline-variant); border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                <div style="background:var(--md-primary-container); padding:10px 16px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:12px; font-weight:bold; color:var(--md-primary);">Métodos de Pago</div>
+                    <button class="btn icon" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:18px; color:var(--md-primary);" onclick="promptCreatePaymentMethod()" title="Añadir Método">➕</button>
+                </div>
+                <div id="paymentMethodsList" style="padding:12px 16px; display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto;">
+                    </div>
+            </div>
+
+            <div id="lblCardHint" class="small" style="text-align:center; margin-top:8px; line-height:1.3; color:var(--md-outline);">Muestra tu QR (🔲) a un amigo para que te agregue a sus grupos.</div>
        </div>
     </div>
 
     <div id="cropperContainer" style="display:none; margin-bottom:16px;">
-       <div style="max-height:300px; width:100%; background:#000; border-radius:12px; overflow:hidden;">
-          <img id="cropperImage" style="max-width:100%; display:block;">
-       </div>
+       <div style="max-height:300px; width:100%; background:#000; border-radius:12px; overflow:hidden;"><img id="cropperImage" style="max-width:100%; display:block;"></div>
        <div class="grid" style="grid-template-columns: auto 1fr 1fr; gap:8px; margin-top:8px;">
           <button class="btn icon" onclick="rotateCropper()" title="Girar 90°">↻</button>
           <button class="btn danger" onclick="cancelCropper()">Cancelar</button>
@@ -444,23 +538,11 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
        </div>
     </div>
 
-    <div id="profileManagementTools">
-        <div class="heading" style="font-size:14px; color:var(--md-primary);">☁️ Respaldo y Datos</div>
-        <div class="grid grid2" style="margin-top:12px; margin-bottom:24px; gap:8px;">
-            <button class="btn primary" onclick="exportData(true)" style="background:#0f9d58; border-color:#0f9d58;">📤 Compartir este Perfil</button>
-            <button class="btn" onclick="exportData(false)">💾 Exportar Todo</button>
-            <button class="btn" onclick="document.getElementById('importFile').click()" style="grid-column:1/-1;">📥 Restaurar / Importar (.mnwsn)</button>
-            <input id="importFile" type="file" accept=".mnwsn" style="display:none" onchange="importData(this)">
-        </div>
-
-        <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
-        
-        <div class="heading" style="font-size:14px; color:var(--md-primary);">👥 Cambiar de Cuenta</div>
-        <select id="profileSelect" onchange="switchProfile(this.value)" style="margin-top:12px; margin-bottom:12px; font-weight:bold; color:var(--md-on-surface);"></select>
-        
-        <div class="grid grid2" style="gap:8px;">
-          <button class="btn" onclick="promptCreateProfile()">+ Crear Nuevo</button>
-          <button class="btn danger" onclick="deleteProfile()">🗑️ Eliminar Actual</button>
+    <div id="profileManagementTools" style="width:100%; max-width:280px; margin: 0 auto; display:flex; flex-direction:column; align-items:center;">
+        <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0; width:100%;">
+        <div style="width:100%;">
+            <div class="heading" style="font-size:12px; color:var(--md-on-surface-variant); margin-bottom:6px;">Cambiar de Perfil / Cuenta</div>
+            <select id="profileSelect" onchange="switchProfile(this.value)" style="font-weight:bold; color:var(--md-on-surface); width:100%; padding:10px; min-height:0; font-size:14px;"></select>
         </div>
     </div>
   </div>
@@ -489,6 +571,28 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
      </div>
 
      <button class="btn" style="margin-top: 24px; background: rgba(255,255,255,0.2); color: white; border: none; min-height: auto; padding: 10px 20px; border-radius: 20px; font-weight:bold;" onclick="closeImgViewer()">✕ Cerrar Vista</button>
+  </div>
+</div>
+
+<div class="modal" id="myQrModal" style="z-index: 6000;" onclick="closeMyQR()">
+  <div class="card" style="max-width: 300px; text-align:center; padding: 24px; margin: auto;" onclick="event.stopPropagation()">
+    <div class="heading" style="margin-bottom:8px; font-size:18px;">Tu Tarjeta de Contacto</div>
+    <div class="small" style="margin-bottom:20px;">Muestra este código a un amigo para que te agregue a su grupo al instante.</div>
+    
+    <div id="qrCodeContainer" style="display:flex; justify-content:center; background:#fff; padding:16px; border-radius:12px; border:2px solid var(--md-outline-variant);"></div>
+    
+    <button class="btn primary" style="margin-top:24px; width:100%;" onclick="closeMyQR()">Listo</button>
+  </div>
+</div>
+
+<div class="modal" id="scanQrModal" style="z-index: 6000;">
+  <div class="card" style="max-width: 400px; text-align:center; padding: 16px; margin: auto;">
+    <div class="heading" style="margin-bottom:8px;">Escanear Contacto</div>
+    <div class="small" style="margin-bottom:16px;">Apunta la cámara al código QR de Monywissen de tu amigo.</div>
+    
+    <div id="qrReader" style="width:100%; border-radius:12px; overflow:hidden; background:#000;"></div>
+    
+    <button class="btn danger" style="margin-top:16px; width:100%;" onclick="stopScanQR()">Cancelar</button>
   </div>
 </div>
 
@@ -592,20 +696,45 @@ function updateAvatarInitials() {
    }
 }
 
-function openProfileModal() {
-   initProfiles();
-   byId('profileSelect').value = currentProfile;
-   byId('lblCurrentProfileName').textContent = currentProfile;
-   cancelCropper(); // Asegurarnos de que el cropper esté oculto al abrir
-   byId('profileModal').classList.add('active');
-}
 
-function closeProfileModal() {
-   cancelCropper();
-   byId('profileModal').classList.remove('active');
-}
+window.renameAlias = function() {
+    const p = prof(); p.settings = p.settings || {};
+    showDialog({
+        title: 'Tu Alias', msg: 'Ingresa el apodo con el que te identificas en los grupos:',
+        input: true, inputValue: p.settings.myAlias || '', hideCancel: false,
+        onConfirm: (val) => {
+            p.settings.myAlias = val.trim(); saveApp();
+            if (byId('lblCurrentAlias')) byId('lblCurrentAlias').textContent = p.settings.myAlias || 'Sin Alias';
+        }
+    });
+};
 
-// Inicializar herramienta de recorte al subir foto
+window.editPhone = function() {
+    const p = prof(); p.settings = p.settings || {};
+    showDialog({
+        title: 'Tu Teléfono (ID Único)', 
+        msg: 'Ingresa tu número con código de país (Ej. +584141234567 o +13051234567):',
+        input: true, inputValue: p.settings.myPhone || '', inputType: 'tel', hideCancel: false,
+        onConfirm: (val) => {
+            let clean = val.replace(/[^\d+]/g, ''); // Deja solo números y el símbolo '+'
+            if(clean && !clean.startsWith('+')) clean = '+' + clean; // Si olvidó el +, se lo pone al inicio
+            p.settings.myPhone = clean; saveApp();
+            if (byId('lblCurrentPhone')) byId('lblCurrentPhone').textContent = p.settings.myPhone || 'Sin Número';
+        }
+    });
+};
+
+// 2. Cerrar el modal (Blindado)
+window.closeProfileModal = function() {
+    byId('profileModal').classList.remove('active');
+    
+    // Si tienes el recortador de fotos abierto y le das a la X, lo cerramos también
+    if (typeof cancelCropper === 'function') {
+        cancelCropper();
+    }
+};
+
+
 function initProfileCropper(input) {
    const file = input.files[0];
    if (!file) return;
@@ -667,16 +796,21 @@ function switchSettingsTab(tabId, el) {
 
 // --- Gestión de Perfiles ---
 function initProfiles(){
-  byId('profileSelect').innerHTML=Object.keys(app.profiles).map(p=>'<option '+(p===currentProfile?'selected':'')+'>'+p+'</option>').join('');
+  let opts = Object.keys(app.profiles).map(p=>'<option value="'+p+'" '+(p===currentProfile?'selected':'')+'>'+p+'</option>').join('');
+  opts += '<option value="_CREATE_NEW_" style="font-weight:bold; color:var(--md-primary);">➕ Crear Nuevo Perfil...</option>';
+  byId('profileSelect').innerHTML = opts;
 }
 
 function switchProfile(name){
+  if(name === '_CREATE_NEW_') {
+     byId('profileSelect').value = currentProfile; // Resetear selector por si cancela
+     promptCreateProfile();
+     return;
+  }
   if(name===currentProfile) return;
   currentProfile=name; app.currentProfile=name; 
   saveApp(); syncForm(); runPlan(); updateAvatarInitials(); closeProfileModal();
 }
-
-
 
 // Función que fuerza la descarga en navegadores
 function descargarArchivoPC(blob, fileName) {
@@ -758,64 +892,97 @@ function toggleDrawer(){byId('drawer').classList.toggle('open');byId('drawerOver
 
 function closeModal(){byId('modal').classList.remove('active')}
 
-
 function toggleDebtType() {
+  const p = prof();
   const t = byId('f_type') ? byId('f_type').value : 'credit';
-  if (byId('wrapRegularDebt')) byId('wrapRegularDebt').style.display = (t === 'cashea' || t === 'quoota') ? 'none' : 'contents';
-  if (byId('wrapDatesDebt')) byId('wrapDatesDebt').style.display = (t === 'cashea' || t === 'quoota') ? 'contents' : 'none';
+  let customDef = (p.settings.customDebts || []).find(c => c.id === t);
   
-  if (t === 'noloan' || t === 'cashea' || t === 'quoota') {
-    const h = byId('f_hasInterest');
-    if (h) h.value = 'false';
-    toggleAprSection();
-  }
+  const isCashea = (t === 'cashea' || t === 'quoota');
+  const isNoLoan = (t === 'noloan');
+
+  // Mapeo visual de módulos
+  byId('mod_balance').style.display = isCashea ? 'none' : 'contents';
+  byId('mod_quota').style.display = (isCashea || (customDef && !customDef.usePlan)) ? 'contents' : 'none';
+  byId('mod_dates').style.display = (isCashea || customDef) ? 'contents' : 'none';
+  byId('mod_days').style.display = (!isCashea && !customDef) ? 'contents' : 'none';
+  byId('mod_plan').style.display = (!isCashea && (!customDef || customDef.usePlan)) ? 'contents' : 'none';
+  
+  const showInt = (!isCashea && !isNoLoan && (!customDef || customDef.hasInterest));
+  byId('mod_interest').style.display = showInt ? 'contents' : 'none';
+
+  if (byId('f_hasInterest')) byId('f_hasInterest').value = showInt ? 'true' : 'false';
+  toggleAprSection();
+  showDebtProjection(); 
+
+  let defaultC = '#d93025'; 
+  if (t === 'cashea') defaultC = '#fbbc04';
+  else if (t === 'quoota') defaultC = '#e8710a';
+  else if (customDef && customDef.color) defaultC = customDef.color;
+  
+  if (byId('f_color') && (modalIndex === null || window.lastDebtType !== t)) byId('f_color').value = defaultC;
+  window.lastDebtType = t;
 }
 
 function debtForm(x={}){
+  const p = prof();
   const t = x.type || 'credit';
+  window.lastDebtType = t;
+  
+  let customOptions = (p.settings.customDebts || []).map(c => `<option value="${c.id}" ${t===c.id?'selected':''}>⭐ ${c.name}</option>`).join('');
+
+  let planOptions = '<option value="full"'+(x.plan==='full'?' selected':'')+'>Pago Total / 1 Mes</option>';
+  for(let i=2; i<=12; i++) { planOptions += '<option value="partial-'+i+'"'+(x.plan==='partial-'+i?' selected':'')+'>'+i+' Meses</option>'; }
+
   return '<div class="grid grid2">'+
-    '<div><label>Nombre</label><input id="f_name" value="'+(x.name||'')+'" required></div>'+
+    '<div><label>Nombre de la Deuda</label><input id="f_name" value="'+(x.name||'')+'" required></div>'+
     '<div><label>Tipo</label><select id="f_type" onchange="toggleDebtType()">'+
-      '<option value="credit"'+(t==='credit'?' selected':'')+'>Crédito</option>'+
-      '<option value="card"'+(t==='card'?' selected':'')+'>Tarjeta</option>'+
-      '<option value="fixed"'+(t==='fixed'?' selected':'')+'>Préstamo</option>'+
-      '<option value="noloan"'+(t==='noloan'?' selected':'')+'>Sin interés</option>'+
+      '<option value="credit"'+(t==='credit'?' selected':'')+'>Crédito Estándar</option>'+
+      '<option value="card"'+(t==='card'?' selected':'')+'>Tarjeta de Crédito</option>'+
+      '<option value="fixed"'+(t==='fixed'?' selected':'')+'>Préstamo Bancario</option>'+
+      '<option value="noloan"'+(t==='noloan'?' selected':'')+'>Sin interés (Solo Saldo)</option>'+
       '<option value="cashea"'+(t==='cashea'?' selected':'')+'>Cashea (Quincenal)</option>'+
       '<option value="quoota"'+(t==='quoota'?' selected':'')+'>Quoota (Quincenal)</option>'+
+      customOptions +
     '</select></div>'+
     
-    // Contenedor Exclusivo para Cashea y Quoota (Fechas fijas)
-    '<div id="wrapDatesDebt" style="display:'+(t==='cashea'||t==='quoota'?'contents':'none')+'">'+
-      '<div><label>Monto de CADA Cuota</label><input id="f_fixed_amount" type="number" value="'+(x.amount||'')+'" required></div>'+
-      '<div><label>Fecha 1ra Cuota</label><input id="f_start_date" type="date" value="'+(x.start||today())+'" required></div>'+
-      '<div><label>Fecha Última Cuota</label><input id="f_end_date" type="date" value="'+(x.end||'')+'" required></div>'+
+    '<div style="grid-column: 1 / -1; display:flex; align-items:center; gap:12px; background:var(--md-surface-variant); padding:8px 12px; border-radius:12px;">'+
+      '<label style="margin:0; flex:1; font-size:14px; color:var(--md-on-surface);">Color Identificador:</label>'+
+      '<input type="color" id="f_color" value="'+(x.color||'#d93025')+'" style="width:50px; height:40px; padding:0; border:none; border-radius:8px; cursor:pointer;">'+
     '</div>'+
     
-    // Contenedor Regular para Otras Deudas
-    '<div id="wrapRegularDebt" style="display:'+(t==='cashea'||t==='quoota'?'none':'contents')+'">'+
-      '<div><label>Saldo absoluto</label><input id="f_balance" type="number" oninput="showDebtProjection()" value="'+(x.balance||'')+'"></div>'+
-      '<div><label>Genera interés?</label><select id="f_hasInterest" onchange="toggleAprSection(); showDebtProjection()">'+
-        '<option value="true"'+(x.hasInterest!==false?' selected':'')+'>Sí</option>'+
-        '<option value="false"'+(x.hasInterest===false?' selected':'')+'>No</option>'+
-      '</select></div>'+
-      '<div id="aprSection" class="grid grid2" style="display:'+(x.hasInterest===false?'none':'grid')+'">'+
-        '<div><label>APR (Anual)</label><input id="f_apr" type="number" step="0.01" oninput="showDebtProjection()" value="'+(x.apr||0.60)+'"></div>'+
-        '<div><label>Mora (Anual)</label><input id="f_mora" type="number" step="0.01" oninput="showDebtProjection()" value="'+(x.mora||0.03)+'" readonly style="background:#f5f7fb"></div>'+
-      '</div>'+
-      '<div><label>Día corte</label><input id="f_cut" type="number" min="1" max="31" value="'+(x.cutDay||'')+'"></div>'+
-      '<div><label>Día pago</label><input id="f_due" type="number" min="1" max="31" value="'+(x.dueDay||'')+'"></div>'+
-      '<div><label>Límite</label><input id="f_limit" type="number" value="'+(x.limit||'')+'"></div>'+
-      '<div><label>Plan</label><select id="f_plan" onchange="showDebtProjection()">'+
-        '<option value="full"'+(x.plan==='full'?' selected':'')+'>Total</option>'+
-        '<option value="partial-1"'+(x.plan==='partial-1'?' selected':'')+'>1 Mes</option>'+
-        '<option value="partial-2"'+(x.plan==='partial-2'?' selected':'')+'>2 Meses</option>'+
-        '<option value="partial-3"'+(x.plan==='partial-3'?' selected':'')+'>3 Meses</option>'+
-      '</select></div>'+
-      '<div id="debtProjection" style="margin-top:10px;padding:10px;background:#f5f7fb;border-radius:12px;font-size:11px;grid-column:1/-1"></div>'+
+    '<div id="mod_balance" style="display:none"><div style="grid-column:1/-1;"><label>Saldo Total Absoluto</label><input id="f_balance" type="number" oninput="showDebtProjection()" value="'+(x.balance||'')+'"></div></div>'+
+    
+    '<div id="mod_quota" style="display:none"><div><label>Monto de la Cuota</label><input id="f_quota" type="number" value="'+(x.amount||'')+'"></div></div>'+
+    
+    '<div id="mod_dates" style="display:none">'+
+      '<div><label>Fecha Inicial</label><input id="f_start" type="date" value="'+(x.start||today())+'"></div>'+
+      '<div><label>Fecha Final (Opcional)</label><input id="f_end" type="date" value="'+(x.end||'')+'"></div>'+
     '</div>'+
+
+    '<div id="mod_days" style="display:none">'+
+      '<div><label>Día de Corte</label><input id="f_cut" type="number" min="1" max="31" value="'+(x.cutDay||'')+'"></div>'+
+      '<div><label>Día de Pago (Cobro)</label><input id="f_due" type="number" min="1" max="31" value="'+(x.dueDay||'')+'"></div>'+
+    '</div>'+
+
+    '<div id="mod_interest" style="display:none; grid-column:1/-1;">'+
+      '<div class="grid grid2" style="background:#fff3e0; padding:12px; border-radius:12px; border:1px solid #ffe0b2;">'+
+          '<div><label>¿Genera interés?</label><select id="f_hasInterest" onchange="toggleAprSection(); showDebtProjection()">'+
+            '<option value="true"'+(x.hasInterest!==false?' selected':'')+'>Sí</option>'+
+            '<option value="false"'+(x.hasInterest===false?' selected':'')+'>No</option>'+
+          '</select></div>'+
+          '<div id="aprSection" class="grid grid2" style="grid-column:1/-1;">'+
+            '<div><label>APR (Anual %)</label><input id="f_apr" type="number" step="1" oninput="showDebtProjection()" value="'+(x.apr !== undefined ? (x.apr * 100).toFixed(0) : '60')+'"></div>'+
+            '<div><label>Mora (Anual %)</label><input id="f_mora" type="number" step="1" oninput="showDebtProjection()" value="'+(x.mora !== undefined ? (x.mora * 100).toFixed(0) : '3')+'"></div>'+
+          '</div>'+
+      '</div>'+
+    '</div>'+
+
+    '<div id="mod_plan" style="display:none; grid-column:1/-1;"><div><label>Fraccionar Pago en:</label><select id="f_plan" onchange="showDebtProjection()">'+planOptions+'</select></div></div>'+
+    
+    '<input type="hidden" id="f_min" value="">'+ 
+    '<div id="debtProjection" style="margin-top:10px;padding:10px;background:#f5f7fb;border-radius:12px;font-size:11px;grid-column:1/-1; display:none;"></div>'+
   '</div>';
 }
-
 
 function singleTransactionForm(type, x={}) {
   return '<div class="grid grid2">'+
@@ -1230,6 +1397,77 @@ function saveModal(){
      saveApp(); closeModal(); runPlan();
      return;
   }
+  
+  // --- INYECCIÓN CUENTAS COMPARTIDAS (GUARDAR) ---
+  if (t === 'sharedAccount') {
+      const name = byId('f_sh_name').value.trim();
+      const parts = window.tempParticipants || []; // LEE DIRECTAMENTE DEL ARRAY DINÁMICO
+      const splitType = byId('f_sh_split').value;
+      
+      if(!name || parts.length === 0) return alert('Por favor, ingresa el nombre del evento y agrega al menos un integrante.');
+      
+      let percentages = {};
+      let phoneMap = {};
+      let totalPct = 0;
+      
+      document.querySelectorAll('.sh-phone-input').forEach(inp => {
+          const pName = inp.dataset.name; 
+          let cleanPhone = inp.value.replace(/[^\d+]/g, ''); 
+          if(cleanPhone && !cleanPhone.startsWith('+')) cleanPhone = '+' + cleanPhone;
+          if (cleanPhone) phoneMap[pName] = cleanPhone;
+      });
+
+      if(splitType === 'percentage') {
+          document.querySelectorAll('.sh-pct-input').forEach(inp => {
+              const pName = inp.dataset.name; const pVal = parseFloat(inp.value) || 0;
+              percentages[pName] = pVal; totalPct += pVal;
+          });
+          if(Math.abs(totalPct - 100) > 0.1) return alert('Los porcentajes deben sumar exactamente 100%.');
+      }
+
+      p.sharedAccounts = p.sharedAccounts || [];
+      let obj = i !== null ? p.sharedAccounts[i] : { id: uid(), expenses: [], transfersData: {} };
+      obj.name = name; obj.participants = parts; obj.splitType = splitType; 
+      obj.percentages = percentages; obj.phoneMap = phoneMap;
+      
+      if(i === null) p.sharedAccounts.push(obj); else p.sharedAccounts[i] = obj;
+      saveApp(); closeModal(); renderSharedAccounts(); 
+      if(byId('sharedDetailView') && byId('sharedDetailView').style.display === 'block' && i !== null) renderSharedAccountDetail(i);
+      return;
+  }
+  
+  if (t === 'sharedExpense') {
+      const acc = p.sharedAccounts[i.accIdx];
+      const desc = byId('f_she_desc').value.trim();
+      const amount = parseFloat(byId('f_she_amount').value) || 0;
+      const paidBy = byId('f_she_paidby').value;
+      const date = byId('f_she_date').value || today();
+      if(!desc || amount <= 0) return alert('Registra datos válidos.');
+      
+      let obj = i.expIdx !== null ? acc.expenses[i.expIdx] : { id: uid() };
+      obj.desc = desc; obj.amount = amount; obj.paidBy = paidBy; obj.date = date;
+      
+      const myGlobalAlias = p.settings.myAlias || '';
+
+      // AUTO-ENLACE GLOBAL
+      if (myGlobalAlias && obj.paidBy === myGlobalAlias) {
+          let pExp = p.expenses.find(x => x.id === obj.linkedId);
+          if (!pExp) {
+              obj.linkedId = uid();
+              p.expenses.push({ id: obj.linkedId, name: `Grupo: ${acc.name}`, desc: obj.desc, amount: obj.amount, freq: 'one-time', date: obj.date, flex: false });
+          } else {
+              pExp.amount = obj.amount; pExp.date = obj.date; pExp.desc = obj.desc; pExp.name = `Grupo: ${acc.name}`;
+          }
+      } else {
+          if (obj.linkedId) {
+              p.expenses = p.expenses.filter(x => x.id !== obj.linkedId);
+              delete obj.linkedId;
+          }
+      }
+
+      if(i.expIdx === null) acc.expenses.push(obj); else acc.expenses[i.expIdx] = obj;
+      saveApp(); closeModal(); renderSharedAccountDetail(i.accIdx); return;
+  }
   // ------------------------------------------
 
   const nameEl=byId('f_name');
@@ -1263,18 +1501,45 @@ function saveModal(){
     if(i===null)p.expenses.push(obj);else p.expenses[i]=obj;
   }
   else if(t==='debt'){
-    const isSpecial = byId('f_type').value==='cashea' || byId('f_type').value==='quoota';
-    let obj = { id: i!==null ? p.debts[i].id : uid(), name, type: byId('f_type').value };
-    if (isSpecial) {
-       obj.amount = parseFloat(byId('f_fixed_amount').value) || 0;
-       obj.start = byId('f_start_date').value;
-       obj.end = byId('f_end_date').value;
+    const isCashea = byId('f_type').value === 'cashea' || byId('f_type').value === 'quoota';
+    const customDef = (p.settings.customDebts || []).find(c => c.id === byId('f_type').value);
+    let obj = { id: i!==null ? p.debts[i].id : uid(), name, type: byId('f_type').value, color: byId('f_color').value };
+    
+    if (isCashea) {
+       obj.amount = parseFloat(byId('f_quota').value) || 0;
+       obj.start = byId('f_start').value;
+       obj.end = byId('f_end').value;
        obj.balance = 0; obj.minPay = obj.amount; 
+    } else if (customDef) {
+       obj.start = byId('f_start').value;
+       obj.end = byId('f_end').value;
+       obj.hasInterest = customDef.hasInterest;
+       obj.apr = customDef.hasInterest ? ((parseFloat(byId('f_apr').value)||0)/100) : 0;
+       obj.mora = customDef.hasInterest ? ((parseFloat(byId('f_mora').value)||0)/100) : 0;
+       
+       let baseBalance = parseFloat(byId('f_balance').value) || 0;
+       
+       if (customDef.usePlan) {
+           obj.plan = byId('f_plan').value;
+           let months = obj.plan === 'full' ? 1 : (parseInt(obj.plan.split('-')[1]) || 1);
+           let interest = customDef.hasInterest ? (baseBalance * obj.apr * (months/12)) : 0;
+           obj.balance = baseBalance + interest;
+           
+           // Traduce la cuota mensual a la frecuencia elegida
+           let quota = obj.balance / months;
+           if (customDef.freq === 'weekly') quota /= 4.33;
+           else if (customDef.freq === 'biweekly') quota /= 2;
+           obj.amount = quota;
+       } else {
+           obj.balance = baseBalance;
+           obj.amount = parseFloat(byId('f_quota').value) || 0;
+       }
+       obj.minPay = obj.amount;
     } else {
        obj.balance = +byId('f_balance').value||0;
-       obj.apr = byId('f_apr')?(+byId('f_apr').value||0.60):0.60;
-       obj.mora = byId('f_mora')?(+byId('f_mora').value||0.03):0.03;
        obj.hasInterest = byId('f_hasInterest')?byId('f_hasInterest').value==='true':true;
+       obj.apr = obj.hasInterest ? ((parseFloat(byId('f_apr').value)||0)/100) : 0;
+       obj.mora = obj.hasInterest ? ((parseFloat(byId('f_mora').value)||0)/100) : 0;
        obj.cutDay = byId('f_cut')?(+byId('f_cut').value||0):0;
        obj.dueDay = byId('f_due')?(+byId('f_due').value||0):0;
        obj.plan = byId('f_plan').value;
@@ -1285,18 +1550,87 @@ function saveModal(){
   saveApp(); closeModal(); runPlan();
 }
 
+function promptCreateCustomDebt(editId = null) {
+    const p = prof();
+    p.settings.customDebts = p.settings.customDebts || [];
+    let c = { name: '', freq: 'monthly', hasInterest: false, usePlan: false, color: '#8e24aa' };
+    
+    if (editId) {
+        const found = p.settings.customDebts.find(x => x.id === editId);
+        if (found) c = found;
+    }
+
+    const html = `
+        <div class="grid" style="text-align:left; gap:8px; font-size:13px;">
+            <div><label>Nombre del Tipo</label><input id="cd_name" value="${c.name}" placeholder="Ej. Prestamista, San..." required></div>
+            <div><label>Frecuencia de Cobro</label><select id="cd_freq">
+                <option value="weekly" ${c.freq==='weekly'?'selected':''}>Semanal</option>
+                <option value="biweekly" ${c.freq==='biweekly'?'selected':''}>Quincenal</option>
+                <option value="monthly" ${c.freq==='monthly'?'selected':''}>Mensual</option>
+            </select></div>
+            <div style="background:var(--md-surface-variant); padding:10px; border-radius:8px;">
+                <label style="margin-bottom:8px; font-weight:bold; color:var(--md-primary);">Opciones Inteligentes:</label>
+                <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="cd_hasInterest" ${c.hasInterest?'checked':''} style="width:16px; height:16px; min-height:0;"> Motor de Intereses (APR / Mora)</label>
+                <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="cd_usePlan" ${c.usePlan?'checked':''} style="width:16px; height:16px; min-height:0;"> Fraccionar en Plan (1 a 12 Meses)</label>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; margin-top:8px;">
+                <label style="margin:0; flex:1; font-weight:bold;">Color Predeterminado</label>
+                <input type="color" id="cd_color" value="${c.color}" style="width:40px; height:36px; padding:0; border:none; border-radius:8px;">
+            </div>
+        </div>
+    `;
+    
+    showDialog({
+        title: editId ? 'Editar Tipo de Deuda' : 'Nuevo Tipo de Deuda', 
+        msg: html, hideCancel: false,
+        onConfirm: () => {
+            const name = byId('cd_name').value.trim();
+            if(!name) return showDialog({title:'Error', msg:'Debes asignarle un nombre.', hideCancel:true});
+            
+            const newData = {
+                id: editId || ('custom_' + Date.now()), 
+                name: name, freq: byId('cd_freq').value,
+                hasInterest: byId('cd_hasInterest').checked,
+                usePlan: byId('cd_usePlan').checked,
+                color: byId('cd_color').value
+            };
+
+            if (editId) {
+                const idx = p.settings.customDebts.findIndex(x => x.id === editId);
+                if(idx !== -1) p.settings.customDebts[idx] = newData;
+            } else { p.settings.customDebts.push(newData); }
+
+            saveApp(); renderSettings();
+            showDialog({title:'¡Éxito!', msg:'Tipo de deuda guardado.', hideCancel:true});
+        }
+    });
+}
+
+function deleteCustomDebt(id) {
+    if(confirm('¿Seguro que deseas eliminar este tipo de deuda? (Las deudas ya creadas mantendrán sus cálculos pero perderán la etiqueta personalizada)')) {
+        const p = prof();
+        p.settings.customDebts = p.settings.customDebts.filter(c => c.id !== id);
+        saveApp(); renderSettings();
+    }
+}
+
 function makeDaySelector(freq,day){
   if(freq==='one-time')return '<label>Fecha</label><input id="f_date" type="date" value="'+(day||today())+'" required>';
+  
   if(freq==='monthly'||freq==='biweekly'||freq==='triweekly'){
     return '<label>Día del mes</label><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px">'+
       Array.from({length:31},(_,i)=>i+1).map(d=>'<div onclick="selectDay(this,'+d+')" style="'+(day===d?'background:var(--md-primary);color:white':'background:var(--md-surface-variant);color:var(--md-on-surface);')+'padding:12px;text-align:center;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600">'+d+'</div>').join('')+
     '</div><input id="f_day" type="number" min="1" max="31" value="'+(day||1)+'" style="display:none" required>';
   }
-  const days=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  
+  // AQUÍ ESTÁN LAS NUEVAS SIGLAS
+  const days = ['D','L','M','X','J','V','S'];
+  
   return '<label>Día de la semana</label><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px">'+
-    days.map((d,i)=>'<div onclick="selectDay(this,'+i+')" style="'+(day===i?'background:var(--md-primary);color:white':'background:var(--md-surface-variant);color:var(--md-on-surface);')+'padding:12px;text-align:center;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">'+d+'</div>').join('')+
+    days.map((d,i)=>'<div onclick="selectDay(this,'+i+')" style="'+(day===i?'background:var(--md-primary);color:white':'background:var(--md-surface-variant);color:var(--md-on-surface);')+'padding:12px;text-align:center;border-radius:8px;cursor:pointer;font-size:16px;font-weight:900">'+d+'</div>').join('')+
   '</div><input id="f_day" type="number" min="0" max="6" value="'+(day||0)+'" style="display:none" required>';
 }
+
 function selectDay(el,day){
   const parent=el.parentElement;
   parent.querySelectorAll('div').forEach(div=>{div.style.background='var(--md-surface-variant)';div.style.color='var(--md-on-surface)'});
@@ -1359,39 +1693,38 @@ function expenseForm(x={}){
 }
 
 function showDebtProjection() {
-  const balance = byId('f_balance') ? (+byId('f_balance').value || 0) : 0;
-  const hasInterest = byId('f_hasInterest') ? byId('f_hasInterest').value === 'true' : true;
-  const apr = byId('f_apr') ? (+byId('f_apr').value || 0.60) : 0.60;
-  const mora = byId('f_mora') ? (+byId('f_mora').value || 0.03) : 0.03;
-  const planv = byId('f_plan') ? byId('f_plan').value : 'partial-3';
-  let out = '';
-  let calcMin = 0;
-  
-  if (!hasInterest) {
-    let months = planv === 'full' ? 1 : (parseInt(planv.split('-')[1]) || 1);
-    calcMin = balance / months;
-    out = '<div>Sin interés: saldo ' + fmt(balance) + '</div><div>Cuota mensual: ' + fmt(calcMin) + '</div><div><strong>Total a pagar: ' + fmt(balance) + '</strong></div>';
-  } else if (planv === 'full') {
-    const interesUnMes = (balance * apr) / 12;
-    calcMin = balance + interesUnMes;
-    out = '<div>Pago Total: saldo ' + fmt(balance) + '</div><div>Interés est. mes: ' + fmt(interesUnMes) + '</div><div><strong>Total estimado: ' + fmt(calcMin) + '</strong></div>';
-  } else {
-    const months = parseInt(planv.split('-')[1]) || 1;
-    const interesMensual = (balance * apr) / 12;
-    const interesTotal = interesMensual * months;
-    const total = balance + interesTotal;
-    calcMin = total / months;
-    out = '<div>Pago mensual: ' + fmt(calcMin) + '</div><div>Interés total: ' + fmt(interesTotal) + '</div><div><strong>Total con intereses: ' + fmt(total) + '</strong></div>';
-  }
-  if (hasInterest && mora > 0) out += '<div style="margin-top:8px;color:#b3261e">Mora 3% anual si hay retraso</div>';
-  
-  const el = byId('debtProjection');
-  if (el) el.innerHTML = out;
-  
-  const minEl = byId('f_min');
-  if (minEl) minEl.value = calcMin.toFixed(2);
+    const el = byId('debtProjection');
+    if(!el) return;
+    const t = byId('f_type').value;
+    const modPlan = byId('mod_plan').style.display !== 'none';
+    
+    if (t === 'cashea' || t === 'quoota' || !modPlan) {
+        el.style.display = 'none'; return;
+    }
+    
+    el.style.display = 'block';
+    const balance = parseFloat(byId('f_balance').value) || 0;
+    const hasInterest = byId('f_hasInterest') ? byId('f_hasInterest').value === 'true' : true;
+    const apr = byId('f_apr') ? ((parseFloat(byId('f_apr').value) || 0) / 100) : 0.60;
+    const mora = byId('f_mora') ? ((parseFloat(byId('f_mora').value) || 0) / 100) : 0.03;
+    const planv = byId('f_plan') ? byId('f_plan').value : 'partial-3';
+    const months = planv === 'full' ? 1 : (parseInt(planv.split('-')[1]) || 1);
+    
+    let out = ''; let calcMin = 0;
+    
+    if (!hasInterest) {
+        calcMin = balance / months;
+        out = '<div>Sin interés: saldo ' + fmt(balance) + '</div><div>Cuota base est.: ' + fmt(calcMin) + '</div><div><strong>Total a pagar: ' + fmt(balance) + '</strong></div>';
+    } else {
+        const interesTotal = (balance * apr) * (months / 12);
+        const total = balance + interesTotal;
+        calcMin = total / months;
+        out = '<div>Pago base mensual: ' + fmt(calcMin) + '</div><div>Interés total ('+months+' mes/es): ' + fmt(interesTotal) + '</div><div><strong>Total con intereses: ' + fmt(total) + '</strong></div>';
+        if (mora > 0) out += '<div style="margin-top:8px;color:#b3261e">Mora ' + (mora*100).toFixed(0) + '% anual si hay retraso</div>';
+    }
+    el.innerHTML = out;
+    if(byId('f_min')) byId('f_min').value = calcMin.toFixed(2);
 }
-
 
 function datesBetween(a,b){const r=[];let d=new Date(a),e=new Date(b);while(d<=e){r.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}return r}
 function getDateInMonth(year,month,day){const d=new Date(year,month,day);if(d.getMonth()!==month)d.setDate(0);return d.toISOString().slice(0,10)}
@@ -1628,11 +1961,36 @@ function editSavingsTotal() {
 function deleteCurrent() {
   showDialog({
     title: 'Eliminar Registro',
-    msg: '¿Estás seguro de eliminar este registro de forma permanente?',
+    msg: '¿Estás seguro de eliminar este registro permanentemente?',
     onConfirm: () => {
-      const listName = modalType === 'saving' ? 'savingsList' : modalType + 's'; 
-      prof()[listName].splice(modalIndex, 1);
-      saveApp(); closeModal(); runPlan();
+      const p = prof();
+      
+      if (modalType === 'sharedAccount') {
+          // Limpieza profunda: Borramos todas las transacciones vinculadas a este grupo
+          const acc = p.sharedAccounts[modalIndex];
+          (acc.expenses || []).forEach(e => {
+              if (e.linkedId) p.expenses = p.expenses.filter(x => x.id !== e.linkedId);
+          });
+          Object.values(acc.transfersData || {}).forEach(t => {
+              if (t.linkedId) {
+                  p.incomes = p.incomes.filter(x => x.id !== t.linkedId);
+                  p.expenses = p.expenses.filter(x => x.id !== t.linkedId);
+              }
+          });
+          p.sharedAccounts.splice(modalIndex, 1);
+          saveApp(); closeModal(); renderSharedAccounts();
+      } 
+      else if (modalType === 'sharedExpense') {
+          const exp = p.sharedAccounts[modalIndex.accIdx].expenses[modalIndex.expIdx];
+          if (exp.linkedId) p.expenses = p.expenses.filter(x => x.id !== exp.linkedId); // Lo borra de mi bolsillo
+          p.sharedAccounts[modalIndex.accIdx].expenses.splice(modalIndex.expIdx, 1);
+          saveApp(); closeModal(); renderSharedAccountDetail(modalIndex.accIdx);
+      } 
+      else {
+          const listName = modalType === 'saving' ? 'savingsList' : modalType + 's'; 
+          p[listName].splice(modalIndex, 1);
+          saveApp(); closeModal(); runPlan();
+      }
     }
   });
 }
@@ -1693,16 +2051,120 @@ function moveSavings(action) {
 }
 
 
-function renderSettings() {
-  const p = prof();
-  byId('planStart').value = p.settings.planStart;
-  byId('planEnd').value = p.settings.planEnd;
-  byId('minBalance').value = p.settings.minBalance;
-  byId('delayDays').value = p.settings.delayDays;
-  byId('openingBalance').value = p.settings.openingBalance;
-  byId('freeSpend').value = p.settings.freeSpend;
-  // Se eliminó la línea que buscaba el porcentaje automático (savePct)
-}
+
+// =========================================================================
+// MOTOR DE MÉTODOS DE PAGO Y COBRO (WHATSAPP)
+// =========================================================================
+
+window.promptCreatePaymentMethod = function(editId = null) {
+    const p = prof();
+    p.settings.paymentMethods = p.settings.paymentMethods || [];
+    let m = { bank: '', name: '', account: '', idCard: '', phone: '', email: '' };
+
+    if (editId) {
+        const found = p.settings.paymentMethods.find(x => x.id === editId);
+        if (found) m = found;
+    }
+
+    const html = `
+        <div class="grid" style="text-align:left; gap:8px; font-size:13px;">
+            <div><label>Entidad Bancaria / Billetera</label><input id="pm_bank" value="${m.bank}" placeholder="Ej. Banesco, Mercantil, Binance..." required></div>
+            <div><label>Nombre Completo (Titular)</label><input id="pm_name" value="${m.name}" placeholder="Nombre exacto de la cuenta"></div>
+            <div><label>Nro. de Cuenta</label><input id="pm_account" value="${m.account}" placeholder="0134... o número de cuenta"></div>
+            <div><label>Cédula / RIF</label><input id="pm_idCard" value="${m.idCard}" placeholder="V-12345678"></div>
+            <div><label>Teléfono asociado</label><input id="pm_phone" value="${m.phone}" placeholder="0414... (Para pago móvil)"></div>
+            <div><label>Correo asociado</label><input id="pm_email" value="${m.email}" placeholder="correo@ejemplo.com (Para Zelle/Binance)"></div>
+            <div class="small" style="color:var(--md-primary); grid-column:1/-1; background:var(--md-surface-variant); padding:8px; border-radius:8px;">* Deja en blanco los campos que no uses. Solo se enviará lo que esté lleno.</div>
+        </div>
+    `;
+
+    showDialog({
+        title: editId ? 'Editar Método de Pago' : 'Nuevo Método de Pago',
+        msg: html, hideCancel: false,
+        onConfirm: () => {
+            const bank = byId('pm_bank').value.trim();
+            if(!bank) return showDialog({title:'Error', msg:'La Entidad Bancaria es obligatoria.', hideCancel:true});
+
+            const newData = {
+                id: editId || ('pm_' + Date.now()), bank,
+                name: byId('pm_name').value.trim(),
+                account: byId('pm_account').value.trim(),
+                idCard: byId('pm_idCard').value.trim(),
+                phone: byId('pm_phone').value.trim(),
+                email: byId('pm_email').value.trim()
+            };
+
+            if (editId) {
+                const idx = p.settings.paymentMethods.findIndex(x => x.id === editId);
+                if(idx !== -1) p.settings.paymentMethods[idx] = newData;
+            } else { p.settings.paymentMethods.push(newData); }
+
+            saveApp(); renderPaymentMethods();
+        }
+    });
+};
+
+window.deletePaymentMethod = function(id) {
+    if(confirm('¿Seguro que deseas eliminar este método de pago?')) {
+        const p = prof();
+        p.settings.paymentMethods = p.settings.paymentMethods.filter(c => c.id !== id);
+        saveApp(); renderPaymentMethods();
+    }
+};
+
+window.openCobroWhatsApp = function(debtorPhone, debtorName, amount, groupName) {
+    const p = prof();
+    const methods = p.settings.paymentMethods || [];
+    let baseMsg = `Hola ${debtorName}, te escribo para recordarte la transferencia pendiente por ${fmt(amount)} de la cuenta de "${groupName}".`;
+
+    if (methods.length === 0) {
+        // Si no tiene tarjetas guardadas, envía el mensaje estándar
+        window.open(`https://wa.me/${debtorPhone}?text=${encodeURIComponent(baseMsg)}`, '_blank');
+        return;
+    }
+
+    // Armar la lista de selección (Checkboxes)
+    let checkboxes = methods.map(m => `
+        <label style="display:flex; align-items:center; gap:12px; padding:12px; background:var(--md-surface); border:1px solid var(--md-outline-variant); border-radius:12px; margin-bottom:8px; cursor:pointer;">
+            <input type="checkbox" class="chk-payment" value="${m.id}" style="width:20px; height:20px; min-height:0; accent-color:var(--md-primary);">
+            <div style="flex:1;">
+                <div style="font-weight:bold; font-size:14px; color:var(--md-primary);">🏦 ${m.bank}</div>
+                <div style="font-size:11px; color:var(--md-on-surface-variant);">${m.account || m.phone || m.email || m.name}</div>
+            </div>
+        </label>
+    `).join('');
+
+    showDialog({
+        title: 'Enviar Recordatorio de Cobro',
+        msg: `
+            <div style="text-align:left; font-size:13px; margin-bottom:12px; color:var(--md-on-surface-variant);">Selecciona los métodos de pago que deseas incluir en el mensaje:</div>
+            <div style="max-height:250px; overflow-y:auto; text-align:left; padding-right:4px;">
+                ${checkboxes}
+            </div>
+        `,
+        hideCancel: false,
+        onConfirm: () => {
+            let selectedIds = Array.from(document.querySelectorAll('.chk-payment:checked')).map(cb => cb.value);
+            let finalMsg = baseMsg;
+
+            if (selectedIds.length > 0) {
+                finalMsg += `\n\n💰 *Puedes pagarme usando estas opciones:*`;
+                selectedIds.forEach(id => {
+                    const m = methods.find(x => x.id === id);
+                    if(m) {
+                        finalMsg += `\n\n🏦 *${m.bank}*`;
+                        if(m.name) finalMsg += `\n👤 Titular: ${m.name}`;
+                        if(m.idCard) finalMsg += `\n🪪 C.I/RIF: ${m.idCard}`;
+                        if(m.account) finalMsg += `\n🔢 Nro. Cuenta: ${m.account}`;
+                        if(m.phone) finalMsg += `\n📱 Teléfono: ${m.phone}`;
+                        if(m.email) finalMsg += `\n✉️ Correo: ${m.email}`;
+                    }
+                });
+            }
+            window.open(`https://wa.me/${debtorPhone}?text=${encodeURIComponent(finalMsg)}`, '_blank');
+        }
+    });
+};
 
 function saveSettings(){
   const p=prof();
@@ -1731,15 +2193,16 @@ function changeMonth(offset) {
 
 function renderIncome() {
   const p = prof();
-  // Solo muestra los recurrentes
   const recurrentes = p.incomes.map((x, idx) => ({...x, originalIdx: idx})).filter(x => x.freq !== 'one-time');
+  const dias = ['D','L','M','X','J','V','S'];
   
   byId('incomeList').innerHTML = table(
     recurrentes.map(x => ({
       Nombre: x.name,
       Monto: fmt(x.amount),
       Frecuencia: x.freq === 'weekly' ? 'Semanal' : x.freq === 'biweekly' ? 'Bisemanal' : x.freq === 'triweekly' ? 'Trisemanal' : 'Mensual',
-      Día: x.day || '-'
+      // Si es semanal, muestra la sigla. Si es mensual/quincenal, muestra el día en número.
+      Día: x.freq === 'weekly' ? (dias[x.day] || '-') : (x.day || '-')
     })),
     ['Nombre', 'Monto', 'Frecuencia', 'Día'],
     'income', recurrentes
@@ -1748,17 +2211,19 @@ function renderIncome() {
 
 function renderExpenses() {
   const p = prof();
-  // Solo muestra los recurrentes
   const recurrentes = p.expenses.map((x, idx) => ({...x, originalIdx: idx})).filter(x => x.freq !== 'one-time');
+  const dias = ['D','L','M','X','J','V','S'];
   
   byId('expenseList').innerHTML = table(
     recurrentes.map(x => ({
       Nombre: x.name,
       Monto: fmt(x.amount),
       Frecuencia: x.freq === 'weekly' ? 'Semanal' : x.freq === 'biweekly' ? 'Bisemanal' : x.freq === 'triweekly' ? 'Trisemanal' : 'Mensual',
+      // Lógica de siglas aplicada también aquí
+      Día: x.freq === 'weekly' ? (dias[x.day] || '-') : (x.day || '-'),
       Flexible: x.flex ? 'Sí' : 'No'
     })),
-    ['Nombre', 'Monto', 'Frecuencia', 'Flexible'],
+    ['Nombre', 'Monto', 'Frecuencia', 'Día', 'Flexible'],
     'expense', recurrentes
   );
 }
@@ -1803,6 +2268,11 @@ function render() {
   renderDashboard();
   renderSavings();
   renderSettings();
+  if (document.querySelector('.section.active') && document.querySelector('.section.active').id === 'shared') {
+		if(byId('sharedDetailView').style.display !== 'block') {
+			renderSharedAccounts();
+		}
+	}
 }
 
 function syncForm() {
@@ -1896,27 +2366,66 @@ function runPlan(){
   });
 
   p.debts.forEach(x=>{
-    if (x.type === 'cashea' || x.type === 'quoota') {
+    let customDef = (p.settings.customDebts || []).find(c => c.id === x.type);
+    let isCashea = (x.type === 'cashea' || x.type === 'quoota');
+    
+    let prefix = x.type === 'cashea' ? 'C - ' : (x.type === 'quoota' ? 'Q - ' : (customDef ? customDef.name.substring(0,2).toUpperCase() + ' - ' : ''));
+    x.effectiveColor = x.color || (customDef ? customDef.color : (x.type === 'cashea' ? '#fbbc04' : (x.type === 'quoota' ? '#e8710a' : '#d93025')));
+
+    if (isCashea) {
       if(!x.start || !x.end) return;
       let curr = new Date(x.start + 'T12:00:00');
       const endDate = new Date(x.end + 'T12:00:00');
+      const pay = x.amount > 0 ? x.amount : (parseFloat(x.minPay) || 0);
+
       while (curr <= endDate) {
         const dateStr = curr.toISOString().slice(0, 10);
-        const prefix = x.type === 'cashea' ? 'C - ' : 'Q - ';
-        addOccur(map, dateStr, prefix + x.name, x.type, -x.amount, x);
+        addOccur(map, dateStr, prefix + x.name, 'debt', -pay, x);
         curr.setDate(curr.getDate() + 14);
       }
+    } else if (customDef) {
+      // 🧠 LÓGICA PERSONALIZADA INTELIGENTE
+      if(!x.start || !x.amount) return;
+      let curr = new Date(x.start + 'T12:00:00');
+      const limitDate = x.end ? new Date(x.end + 'T12:00:00') : new Date(p.settings.planEnd + 'T12:00:00');
+      const freq = customDef.freq || 'monthly';
+      const pay = parseFloat(x.amount) || 0;
+      const totalDebt = parseFloat(x.balance) || 0;
+      let accumulated = 0;
+
+      while (curr <= limitDate) {
+        if (totalDebt > 0 && accumulated >= totalDebt) break; // Termina si ya se pagó todo
+        
+        let currentPay = pay;
+        if (totalDebt > 0 && accumulated + pay > totalDebt) {
+            currentPay = totalDebt - accumulated; // Ajusta la última cuota al saldo restante
+        }
+
+        const dateStr = curr.toISOString().slice(0, 10);
+        addOccur(map, dateStr, prefix + x.name, 'debt', -currentPay, x);
+        accumulated += currentPay;
+        
+        // Sumar tiempo según la frecuencia
+        if (freq === 'weekly') curr.setDate(curr.getDate() + 7);
+        else if (freq === 'biweekly') curr.setDate(curr.getDate() + 14);
+        else if (freq === 'monthly') curr.setMonth(curr.getMonth() + 1);
+      }
     } else {
+      // ROTATIVO ESTÁNDAR
       for(let year=startYear;year<=endYear;year++)for(let month=startMonth;month<=endMonth;month++){
         const pay = parseFloat(x.minPay) || 0;
-        const cutDate=getDateInMonth(year,month,x.cutDay||25);
-        const dueDate=getDateInMonth(year,month,x.dueDay||10);
-        addOccur(map, cutDate, 'Corte: '+x.name, 'debt', 0, x);
-        addOccur(map, dueDate, 'Pago: '+x.name, 'debt', -pay, x);
+        if (x.type !== 'noloan' && x.cutDay) {
+           const cutDate=getDateInMonth(year,month,x.cutDay);
+           addOccur(map, cutDate, 'Corte: '+x.name, 'debt_cut', 0, x);
+        }
+        if (x.dueDay) {
+            const dueDate=getDateInMonth(year,month,x.dueDay);
+            addOccur(map, dueDate, 'Pago: '+x.name, 'debt', -pay, x);
+        }
       }
     }
   });
-
+  
   p.savingsList = p.savingsList || [];
   p.savingsList.forEach(x => {
       addOccur(map, x.date, 'Divisa/Ahorro: ' + x.person, 'savings', -x.amount, x);
@@ -1972,7 +2481,7 @@ function runPlan(){
      });
   }
   
-  saveApp();render();
+  saveApp();render();scheduleNotifications();
 }
 
 function renderSavings() {
@@ -2140,8 +2649,8 @@ function renderListView() {
         if (txt && !e.label.toLowerCase().includes(txt)) return false;
         if (type !== 'all') {
             if (type === 'delayed' && !e.isDelayed) return false;
-            if (type === 'debt' && !['debt', 'cashea', 'quoota'].includes(e.type)) return false;
-            if (type !== 'debt' && type !== 'delayed' && e.type !== type) return false;
+            if (type === 'debt' && !['debt', 'cashea', 'quoota'].includes(e.type) && !e.type.startsWith('custom_')) return false;
+            if (type !== 'debt' && type !== 'delayed' && e.type !== type && e.type !== 'debt_cut') return false;
         }
         return true;
     });
@@ -2151,33 +2660,40 @@ function renderListView() {
         return;
     }
     
-    let html = '<table class="table" style="font-size:12px;"><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th></th></tr></thead><tbody>';
+    let html = '<table class="table" style="font-size:12px;"><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th style="text-align:right">Saldo Restante</th></tr></thead><tbody>';
     
-    filtered.forEach(e => {
+    filtered.forEach((e, idx) => {
          let color = '#49454f';
          if (e.criticalDelay) color = '#d93025'; 
          else if (e.isDelayed) color = '#9c27b0'; 
          else if (e.type === 'income') color = '#0f9d58';
-         else if (e.type === 'expense' || e.type === 'debt') color = '#1a73e8';
-         else if (e.type === 'cashea') color = '#fbbc04';
-         else if (e.type === 'quoota') color = '#e8710a';
+         else if (e.type === 'expense') color = '#1a73e8';
          else if (e.type === 'savings') color = '#00897b';
+         else if (e.type === 'debt' || e.type === 'debt_cut') color = e.ref.effectiveColor || '#d93025'; 
          
-         // NUEVO PREFIJO: pp -
          const prefix = e.isDelayed ? 'pp - ' : '';
          
          html += `<tr style="cursor:pointer;" onclick="showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">
             <td style="white-space:nowrap">${formatDate(e.date)}</td>
             <td><div style="color:${color}; font-weight:bold;">${prefix}${e.label}</div></td>
             <td style="font-weight:bold; color:${e.amt>0?'#0f9d58':(e.criticalDelay?'#d93025':'var(--md-on-surface)')}">${fmt(Math.abs(e.amt))}</td>
-            <td style="text-align:right; color:var(--md-primary)">🔍</td>
+            <td style="text-align:right; font-weight:bold; color:var(--md-primary);">${fmt(e.balance)}</td>
          </tr>`;
+
+         // INYECCIÓN: LÍNEA DE SALDO ANTES DEL SIGUIENTE INGRESO
+         const nxt = filtered[idx + 1];
+         if (nxt && nxt.type === 'income' && e.type !== 'income') {
+             html += `<tr style="background:var(--md-primary-container); pointer-events:none;">
+                <td colspan="4" style="text-align:right; padding:8px 10px; font-size:11px; font-weight:bold; color:var(--md-primary); border-bottom:2px dashed var(--md-primary);">
+                    ➔ Saldo libre antes de recibir "${nxt.label}": ${fmt(e.balance)}
+                </td>
+             </tr>`;
+         }
     });
     html += '</tbody></table>';
     
     byId('listWrap').innerHTML = html;
 }
-
 
 
 function renderCalendar() {
@@ -2211,29 +2727,36 @@ function renderCalendar() {
         if (e.date === dateStr) {
            if (e.amt > 0 && e.type === 'income') mInc += e.amt;
            else if (e.type === 'expense') mExp += Math.abs(e.amt);
-           else if (e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota') mDebt += Math.abs(e.amt);
+           else if (e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota' || e.type === 'debt_cut') mDebt += Math.abs(e.amt);
            return true;
         }
         return false;
     });
     
-    html += '<div class="day' + (isToday ? ' today' : '') + '"><div class="dayhead"><span>' + d + '</span><span style="color:var(--md-primary);font-weight:bold">' + (events.length ? events.length : '') + '</span></div>';
+    // TODA LA CELDA AHORA ES UN BOTÓN QUE ABRE EL MODAL DE ESE DÍA
+    html += `<div class="day${isToday ? ' today' : ''}" style="cursor:pointer; position:relative;" onclick="openDayModal('${dateStr}')">`;
+    html += `<div class="dayhead"><span>${d}</span><span style="color:var(--md-primary);font-weight:bold">${events.length ? events.length : ''}</span></div>`;
     
     events.slice(0, 3).forEach(e => {
        let color = '#49454f';
        if (e.criticalDelay) color = '#d93025'; 
        else if (e.isDelayed) color = '#9c27b0'; 
        else if (e.type === 'income') color = '#0f9d58';
-       else if (e.type === 'expense' || e.type === 'debt') color = '#1a73e8';
-       else if (e.type === 'cashea') color = '#fbbc04';
-       else if (e.type === 'quoota') color = '#e8710a';
+       else if (e.type === 'expense') color = '#1a73e8';
        else if (e.type === 'savings') color = '#00897b';
+       else if (e.type === 'debt' || e.type === 'debt_cut') color = e.ref.effectiveColor || '#d93025'; 
        
-       // NUEVO PREFIJO: pp -
        const prefix = e.isDelayed ? 'pp - ' : '';
        
-       html += `<div class="evt" style="color:${color}; border-color:${color}30; background:${color}10; cursor:pointer;" onclick="showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">${prefix}${e.label}</div>`;
+       // Si tocan un movimiento en específico, bloqueamos que se abra el día completo y mostramos el detalle (stopPropagation)
+       html += `<div class="evt" style="color:${color}; border-color:${color}30; background:${color}10; cursor:pointer;" onclick="event.stopPropagation(); showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">${prefix}${e.label}</div>`;
     });
+
+    // INDICADOR VISUAL SI HAY MÁS DE 3 EVENTOS
+    if (events.length > 3) {
+        html += `<div style="text-align:right; font-size:10px; font-weight:900; color:var(--md-on-surface-variant); margin-top:2px;">+${events.length - 3}</div>`;
+    }
+
     html += '</div>';
   }
   html += '</div>';
@@ -2245,6 +2768,48 @@ function renderCalendar() {
   </div>`;
   
   byId('calendarWrap').innerHTML = html;
+}
+
+function openDayModal(dateStr) {
+    const dayEvents = plan.filter(e => e.date === dateStr);
+    if(dayEvents.length === 0) return; // Si el día está vacío, no hace nada al tocarlo
+    
+    modalType = 'dayView';
+    byId('modalTitle').textContent = `Movimientos: ${formatDate(dateStr)}`;
+    byId('btnDelete').style.display = 'none';
+    byId('btnSave').style.display = 'none'; 
+    
+    let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
+    
+    dayEvents.forEach(u => {
+         let cBg, cTxt, contextText;
+         if (u.criticalDelay) { cBg = '#fce8e6'; cTxt = '#d93025'; contextText = `Crítico: Vencía el ${formatDate(u.originalDate)}`; }
+         else if (u.isDelayed) { cBg = '#f3e8fd'; cTxt = '#9c27b0'; contextText = `Planeado original: ${formatDate(u.originalDate)}`; } 
+         else {
+             if (u.type === 'income') { cBg = '#e6f4ea'; cTxt = '#0f9d58'; } 
+             else if (u.type === 'expense') { cBg = '#e8f0fe'; cTxt = '#1a73e8'; } 
+             else if (u.type === 'savings') { cBg = '#e0f2f1'; cTxt = '#00897b'; } 
+             else if (u.type === 'debt' || u.type === 'debt_cut') { cBg = (u.ref.effectiveColor || '#d93025') + '15'; cTxt = u.ref.effectiveColor || '#d93025'; }
+             else { cBg = '#f5f7fb'; cTxt = '#49454f'; }
+             contextText = u.type === 'debt_cut' ? 'Corte del Mes' : 'Planificado para hoy';
+         }
+         
+         const prefix = u.isDelayed ? 'pp - ' : '';
+
+         // Al tocar un elemento de esta lista, cerramos este modal y abrimos el Detalle completo
+         html += `<div style="background:${cBg};color:${cTxt};padding:12px;border-radius:12px;display:flex;justify-content:space-between;align-items:center; cursor:pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" onclick="closeModal(); setTimeout(() => showDetails('${u.type}', '${u.ref.id}', '${u.originalDate}', '${u.date}'), 100);">
+            <div><div style="font-weight:700;font-size:14px">${prefix}${u.label}</div><div style="font-size:11px;opacity:0.8">${contextText}</div></div>
+            <div style="text-align:right">
+              <div style="font-weight:900;font-size:15px">${u.amt !== 0 ? fmt(Math.abs(u.amt)) : '-'}</div>
+              <div style="font-size:11px; font-weight:bold; color:var(--md-outline); margin-top:2px;">Saldo Restante: <span style="color:var(--md-primary)">${fmt(u.balance)}</span></div>
+            </div>
+         </div>`;
+    });
+    
+    html += '</div>';
+    
+    byId('modalBody').innerHTML = html;
+    byId('modal').classList.add('active');
 }
 
 function showDetails(type, refId, originalDate, planDate) {
@@ -2310,7 +2875,701 @@ function showDetails(type, refId, originalDate, planDate) {
      byId('modalBody').innerHTML = html;
      byId('modal').classList.add('active');
 }
-// --- Centinela de Respaldo Semanal ---
+
+// =========================================================================
+// MOTOR DE CUENTAS COMPARTIDAS (ALGORITMO DE LIQUIDACIÓN GRUPAL)
+// =========================================================================
+
+function calculateSharedSettlement(acc) {
+    const participants = acc.participants || [];
+    const n = participants.length;
+    let total = 0;
+    let paid = {};
+    
+    participants.forEach(p => paid[p] = 0);
+    
+    // 1. Sumar lo que cada persona pagó realmente
+    (acc.expenses || []).forEach(e => {
+        const amt = parseFloat(e.amount) || 0;
+        total += amt;
+        paid[e.paidBy] = (paid[e.paidBy] || 0) + amt;
+    });
+
+    // 2. Calcular lo que cada persona DEBIÓ pagar
+    let should = {};
+    if (acc.splitType === 'percentage') {
+        const pcts = acc.percentages || {};
+        participants.forEach(p => {
+            const pct = parseFloat(pcts[p]) || (100 / n);
+            should[p] = total * (pct / 100);
+        });
+    } else {
+        participants.forEach(p => { should[p] = total / n; });
+    }
+
+    // 3. Obtener balances netos (Positivo = le deben dinero, Negativo = debe dinero)
+    let balances = participants.map(p => ({ name: p, bal: paid[p] - should[p] }));
+
+    // 4. Algoritmo de compensación óptima (Greedy Match)
+    let debtors = balances.filter(x => x.bal < -0.01).sort((a,b) => a.bal - b.bal);
+    let creditors = balances.filter(x => x.bal > 0.01).sort((a,b) => b.bal - a.bal);
+
+    let dArr = debtors.map(x => ({...x, bal: Math.abs(x.bal)}));
+    let cArr = creditors.map(x => ({...x}));
+    let transfers = [];
+    let dIdx = 0, cIdx = 0;
+
+    while(dIdx < dArr.length && cIdx < cArr.length) {
+        let debtor = dArr[dIdx];
+        let creditor = cArr[cIdx];
+        let amount = Math.min(debtor.bal, creditor.bal);
+        
+        if (amount > 0.01) {
+            transfers.push({ from: debtor.name, to: creditor.name, amount: amount });
+        }
+        debtor.bal -= amount;
+        creditor.bal -= amount;
+        if (debtor.bal <= 0.01) dIdx++;
+        if (creditor.bal <= 0.01) cIdx++;
+    }
+
+    return { total, paid, should, transfers };
+}
+
+// --- VISTAS Y RENDERIZADO DEL MÓDULO ---
+
+function renderSharedAccounts() {
+    const p = prof();
+    p.sharedAccounts = p.sharedAccounts || [];
+    
+    byId('sharedListView').style.display = 'block';
+    byId('sharedDetailView').style.display = 'none';
+
+    if (p.sharedAccounts.length === 0) {
+        byId('sharedAccountsList').innerHTML = '<div class="small" style="text-align:center; padding:24px;">No tienes cuentas compartidas activas. Crea una arriba.</div>';
+        return;
+    }
+
+    byId('sharedAccountsList').innerHTML = p.sharedAccounts.map((acc, idx) => {
+        const s = calculateSharedSettlement(acc);
+        return `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; background:var(--md-surface-variant); border-radius:12px; margin-bottom:12px; border:1px solid var(--md-outline-variant);">
+                <div>
+                    <div style="font-weight:bold; font-size:16px; color:var(--md-on-surface);">${acc.name}</div>
+                    <div class="small" style="margin-top:4px;">👥 ${acc.participants.length} integrantes • Cuenta Total: <b style="color:var(--md-primary);">${fmt(s.total)}</b></div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:13px;" onclick="renderSharedAccountDetail(${idx})">👁️ Ver</button>
+                    <button class="btn" style="padding:6px; min-height:0; width:auto; border:none; background:transparent;" onclick="openCreateSharedAccount(${idx})">⚙️</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderSharedAccountDetail(idx) {
+    const acc = prof().sharedAccounts[idx];
+    const s = calculateSharedSettlement(acc);
+    
+    byId('sharedListView').style.display = 'none';
+    byId('sharedDetailView').style.display = 'block';
+    
+    let expHtml = '';
+    if(!acc.expenses || acc.expenses.length === 0) {
+        expHtml = '<div class="small" style="text-align:center; padding:12px;">Sin compras ni gastos registrados.</div>';
+    } else {
+        expHtml = '<table class="table" style="font-size:13px;"><thead><tr><th>¿Qué se compró?</th><th>Pagó</th><th>Monto</th><th></th></tr></thead><tbody>';
+        acc.expenses.forEach((e, eIdx) => {
+            expHtml += `<tr>
+                <td><b>${e.desc}</b></td>
+                <td><span class="small">👤 ${e.paidBy}</span></td>
+                <td style="font-weight:bold; color:var(--md-primary);">${fmt(e.amount)}</td>
+                <td style="text-align:right;"><button class="btn" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; border:none; background:transparent; color:var(--md-primary);" onclick="openAddSharedExpense(${idx}, ${eIdx})">✏️</button></td>
+            </tr>`;
+        });
+        expHtml += '</tbody></table>';
+    }
+
+    let transHtml = '';
+    if(s.transfers.length === 0) {
+        transHtml = '<div class="small" style="text-align:center; padding:16px; color:#0f9d58; font-weight:bold; background:#e6f4ea; border-radius:12px;">✅ ¡Cuentas claras! Todos pagaron lo justo, nadie debe a nadie.</div>';
+    } else {
+        transHtml = '<div style="display:flex; flex-direction:column; gap:8px;">';
+        s.transfers.forEach(t => {
+            const key = `${t.from}_to_${t.to}`;
+            const tData = (acc.transfersData || {})[key] || {};
+            const isDone = tData.status === 'completed';
+            
+            // Lógica para el botón directo de WhatsApp
+            const p = prof();
+            const debtorPhone = (acc.phoneMap && acc.phoneMap[t.from]) ? acc.phoneMap[t.from].replace('+', '') : '';
+            const iAmCreditor = (t.to === (p.settings.myAlias || ''));
+            
+            // Si yo soy el que cobra, no está pagado y tengo su teléfono, le habilito el botón
+            const waButton = (iAmCreditor && !isDone && debtorPhone) ? 
+                `<button class="btn icon" style="padding:6px; min-height:0; width:auto; border:none; background:#e6f4ea; color:#0f9d58; font-size:15px; border-radius:8px;" onclick="openCobroWhatsApp('${debtorPhone}', '${t.from}', ${t.amount}, '${acc.name.replace(/'/g, "\\'")}')" title="Cobrar por WhatsApp">💬</button>` 
+                : '';
+            
+            transHtml += `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:${isDone?'#e6f4ea':'#fff'}; border:1px solid ${isDone?'#0f9d58':'var(--md-outline-variant)'}; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.02); margin-bottom:8px;">
+                    <div style="font-size:13px; color:var(--md-on-surface);">
+                        <span style="font-weight:bold; color:${isDone?'#0f9d58':'var(--md-error)'};">${t.from}</span> 
+                        debe a 
+                        <span style="font-weight:bold;">${t.to}</span>
+                        <br><b style="font-size:16px; color:var(--md-primary);">${fmt(t.amount)}</b>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        ${waButton}
+                        <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:11px; font-weight:bold; background:${isDone?'#0f9d58':'transparent'}; color:${isDone?'#fff':'var(--md-on-surface)'}; border-color:${isDone?'#0f9d58':'var(--md-outline)'};" onclick="toggleTransferStatus(${idx}, '${t.from}', '${t.to}', ${t.amount})">
+                            ${isDone ? '✅ Listo' : '⏳ Pendiente'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        transHtml += '</div>';
+    }
+
+    // MODIFICADO: Agregamos el botón de Ajustes arriba, y un botón de Editar directamente en la caja de integrantes
+    byId('sharedDetailView').innerHTML = `
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+                <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:13px;" onclick="renderSharedAccounts()">❮ Volver</button>
+                <div class="heading" style="margin:0; font-size:18px; font-weight:900;">Grupo: ${acc.name}</div>
+                <div style="display:flex; gap:6px;">
+                    <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:13px; border:1px solid var(--md-outline);" onclick="openCreateSharedAccount(${idx})">⚙️ Ajustes</button>
+                    <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:13px; border:1px solid var(--md-outline);" onclick="exportSharedAccount(${idx})">💾 Exportar</button>
+                    <button class="btn primary" style="background:#0f9d58; border-color:#0f9d58; padding:6px 12px; min-height:0; width:auto; font-size:13px;" onclick="shareSharedAccountWhatsApp(${idx})">📤 WhatsApp</button>
+                </div>
+            </div>
+            
+            <div style="background:var(--md-surface-variant); padding:12px; border-radius:12px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; gap:12px; border:1px solid var(--md-outline-variant);">
+                <div class="small" style="line-height:1.5;">
+                    <b>Estrategia de Cierre:</b> ${acc.splitType==='equal'?'⚖️ Equitativo (Partes iguales)':'📊 Porcentaje personalizado'}<br>
+                    <b>Integrantes:</b> ${acc.participants.join(', ')}
+                </div>
+                <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:12px; background:var(--md-surface);" onclick="openCreateSharedAccount(${idx})">✏️ Editar Grupo</button>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div class="heading" style="font-size:14px; margin:0; color:var(--md-primary);">🛍️ Compras y Pagos Hechos (Total: ${fmt(s.total)})</div>
+                <button class="btn primary" style="padding:4px 12px; min-height:0; width:auto; font-size:12px;" onclick="openAddSharedExpense(${idx})">+ Agregar Gasto</button>
+            </div>
+            <div style="background:var(--md-surface); border:1px solid var(--md-outline-variant); border-radius:12px; padding:6px; margin-bottom:24px;">
+                ${expHtml}
+            </div>
+
+            <div class="heading" style="font-size:14px; margin-bottom:8px; color:var(--md-primary);">💳 Balance de Transferencias Finales</div>
+            ${transHtml}
+        </div>
+    `;
+}
+
+// =========================================================================
+// IMPORTACIÓN Y EXPORTACIÓN DE CUENTAS COMPARTIDAS
+// =========================================================================
+
+function exportSharedAccount(idx) {
+    const acc = prof().sharedAccounts[idx];
+    
+    // Hacemos una copia profunda del grupo para no modificar el original
+    let expObj = JSON.parse(JSON.stringify(acc));
+    
+    // 🧹 LIMPIEZA DE DATOS PRIVADOS ANTES DE EXPORTAR
+    delete expObj.myAlias; // Borramos quién eres tú
+    
+    // Borramos los enlaces a transacciones locales para que no corrompan la cuenta del otro usuario
+    Object.values(expObj.transfersData || {}).forEach(t => delete t.linkedId);
+    (expObj.expenses || []).forEach(e => delete e.linkedId);
+    
+    // Exportamos el archivo
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(expObj));
+    const downloadNode = document.createElement('a');
+    downloadNode.setAttribute("href", dataStr);
+    downloadNode.setAttribute("download", `grupo_${acc.name.replace(/\s+/g, '_').toLowerCase()}.mnwg`);
+    document.body.appendChild(downloadNode);
+    downloadNode.click();
+    downloadNode.remove();
+}
+
+function importSharedAccount(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        try {
+            const obj = JSON.parse(e.target.result);
+            if (!obj.name || !obj.participants || !Array.isArray(obj.participants)) {
+                throw new Error('Formato inválido');
+            }
+            
+            obj.id = uid(); // ID nuevo para evitar choques
+            
+            // --- 🛡️ MAGIA DE IDENTIFICACIÓN POR TELÉFONO ---
+            const p = prof();
+            const myGlobalPhone = p.settings.myPhone || '';
+            let autoAlias = '';
+            
+            if (myGlobalPhone && obj.phoneMap) {
+                // Buscamos si nuestro teléfono está en el directorio que armó el creador
+                for (const [aliasName, phoneNum] of Object.entries(obj.phoneMap)) {
+                    if (phoneNum === myGlobalPhone) {
+                        autoAlias = aliasName;
+                        break;
+                    }
+                }
+            }
+            
+            // Si el sistema lo reconoce, configura su Alias global para que todo el balance cuadre
+            if (autoAlias) {
+                p.settings.myAlias = autoAlias;
+                alert(`✅ ¡Identidad Confirmada!\n\nEl sistema detectó tu número (${myGlobalPhone}) en el archivo. Se te ha asignado automáticamente el alias: "${autoAlias}" en tus ajustes.`);
+            } else {
+                alert(`✅ Grupo importado con éxito.\n\n⚠️ No detectamos tu número de teléfono en este grupo. Asegúrate de configurar tu "Alias" manualmente en tu Perfil para que tus balances se actualicen.`);
+            }
+            // ------------------------------------------------
+
+            p.sharedAccounts = p.sharedAccounts || [];
+            p.sharedAccounts.push(obj);
+            saveApp();
+            renderSharedAccounts();
+            
+        } catch (err) {
+            alert("❌ Error importando el grupo. Asegúrate de que sea un archivo de grupo (.mnwg)");
+        }
+        input.value = ""; 
+    };
+    reader.readAsText(file);
+}
+// =========================================================================
+// MOTOR DE NOTIFICACIONES LOCALES (OFFLINE)
+// =========================================================================
+
+async function setupNotifications() {
+    const timeVal = byId('notifTimeInput').value || '08:00';
+    
+    if (window.Capacitor && window.Capacitor.isPluginAvailable('LocalNotifications')) {
+        const { LocalNotifications } = window.Capacitor.Plugins;
+        const perm = await LocalNotifications.requestPermissions();
+        
+        if (perm.display === 'granted') {
+            prof().settings.notificationsEnabled = true;
+            prof().settings.notifTime = timeVal; // Guardamos la hora elegida
+            saveApp();
+            scheduleNotifications();
+            alert(`✅ ¡Notificaciones activadas! Recibirás tus recordatorios a las ${timeVal}.`);
+        } else {
+            alert("❌ Permiso denegado. No podremos enviarte recordatorios.");
+        }
+    } else {
+        alert("Las notificaciones automáticas solo funcionan en la app instalada (APK).");
+    }
+}
+
+async function scheduleNotifications() {
+    const p = prof();
+    if (!p.settings.notificationsEnabled || !window.Capacitor || !window.Capacitor.isPluginAvailable('LocalNotifications')) return;
+
+    const { LocalNotifications } = window.Capacitor.Plugins;
+    const timeStr = p.settings.notifTime || '08:00';
+    const [hour, minute] = timeStr.split(':').map(Number); // Extraemos la hora personalizada
+
+    try {
+        const pending = await LocalNotifications.getPending();
+        if (pending.notifications.length > 0) {
+            await LocalNotifications.cancel({ notifications: pending.notifications });
+        }
+
+        const todayStr = today();
+        const limitDate = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+        const futureEvents = plan.filter(e => e.date >= todayStr && e.date <= limitDate && (e.type === 'income' || e.type === 'expense' || e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota'));
+
+        const eventsByDate = {};
+        futureEvents.forEach(e => {
+            if(!eventsByDate[e.date]) eventsByDate[e.date] = [];
+            eventsByDate[e.date].push(e);
+        });
+
+        const notificationsToSchedule = [];
+        let idCounter = 1;
+
+        for (const [date, events] of Object.entries(eventsByDate)) {
+            const [y, m, d] = date.split('-');
+            const scheduleDate = new Date(y, m - 1, d, hour, minute, 0); // Programamos con la hora elegida
+
+            if (scheduleDate.getTime() < Date.now()) continue;
+
+            let bodyText = events.map(e => `${e.amt > 0 ? '🟢' : '🔴'} ${e.label}: ${fmt(Math.abs(e.amt))}`).join('\n');
+
+            notificationsToSchedule.push({
+                id: idCounter++,
+                title: `Hoy en Monywissen: ${events.length} movimiento(s)`,
+                body: bodyText,
+                schedule: { at: scheduleDate },
+                smallIcon: "ic_stat_icon_config_sample"
+            });
+        }
+
+        if (notificationsToSchedule.length > 0) {
+            await LocalNotifications.schedule({ notifications: notificationsToSchedule });
+        }
+    } catch (e) { console.error(e); }
+}
+// --- MODALES DE GESTIÓN Y CONFIGURACIÓN ---
+
+
+function openCreateSharedAccount(idx = null) {
+    modalType = 'sharedAccount'; modalIndex = idx;
+    const p = prof(); p.sharedAccounts = p.sharedAccounts || [];
+    let x = idx !== null ? p.sharedAccounts[idx] : { name: '', participants: [], splitType: 'equal', percentages: {}, phoneMap: {} };
+    
+    // 1. Inicializamos el estado temporal con los datos del grupo (o en blanco si es nuevo)
+    window.tempParticipants = x.participants ? [...x.participants] : [];
+    window.tempPhones = x.phoneMap ? {...x.phoneMap} : {};
+    window.tempPcts = x.percentages ? {...x.percentages} : {};
+    
+    // 2. Si es un grupo nuevo y tienes tu Alias configurado, te auto-agregamos por comodidad
+    if (idx === null && p.settings.myAlias && !window.tempParticipants.includes(p.settings.myAlias)) {
+        window.tempParticipants.push(p.settings.myAlias);
+        if (p.settings.myPhone) window.tempPhones[p.settings.myAlias] = p.settings.myPhone;
+    }
+
+    byId('modalTitle').textContent = idx !== null ? 'Editar Cuenta Compartida' : 'Nueva Cuenta Compartida';
+    byId('btnDelete').style.display = idx !== null ? 'inline-flex' : 'none';
+    byId('btnSave').style.display = 'inline-flex';
+
+    let html = `
+        <div class="grid grid2">
+            <div style="grid-column: 1 / -1;"><label>Nombre de la Cuenta / Evento</label><input id="f_sh_name" value="${x.name}" placeholder="Ej. Viaje Morrocoy" required></div>
+            
+            <div style="grid-column: 1 / -1;"><label>Método de Reparto</label><select id="f_sh_split" onchange="renderParticipantList()">
+                <option value="equal" ${x.splitType==='equal'?'selected':''}>⚖️ Equitativo (Partes Iguales)</option>
+                <option value="percentage" ${x.splitType==='percentage'?'selected':''}>📊 Por Porcentaje Personalizado</option>
+            </select></div>
+            
+            <div style="grid-column: 1 / -1; background:var(--md-surface-variant); padding:12px; border-radius:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <div class="small" style="font-weight:bold; color:var(--md-primary);">Directorio de Integrantes:</div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; background:var(--md-surface);" onclick="addParticipantManual()">➕ Agregar Manual</button>
+                        <button class="btn primary" style="padding:4px 8px; min-height:0; width:auto; font-size:11px;" onclick="startScanQR()">📷 Escanear QR</button>
+                    </div>
+                </div>
+                <div id="sharedParticipantsContainer"></div>
+            </div>
+        </div>
+    `;
+    byId('modalBody').innerHTML = html;
+    byId('modal').classList.add('active');
+    
+    // Dibujamos la lista interactiva
+    renderParticipantList();
+}
+
+// =========================================================================
+// MOTOR DE CÓDIGOS QR (COMPARTIR Y ESCANEAR CONTACTOS)
+// =========================================================================
+
+window.showMyQR = function() {
+    if (typeof QRCode === 'undefined') return alert('El generador QR aún está cargando. Intenta de nuevo.');
+    const p = prof();
+    const alias = p.settings.myAlias || '';
+    const phone = p.settings.myPhone || '';
+    
+    if(!alias || !phone) {
+        return showDialog({title:'Aviso', msg:'Para compartir tu contacto debes configurar primero tu Alias y tu Teléfono en tu perfil.', hideCancel:true});
+    }
+    
+    // Formato estructurado: monywissen:contact:Alias:Telefono
+    const qrData = `monywissen:contact:${encodeURIComponent(alias)}:${encodeURIComponent(phone)}`;
+    
+    byId('qrCodeContainer').innerHTML = ''; // Limpiar el anterior
+    new QRCode(byId('qrCodeContainer'), {
+        text: qrData, width: 200, height: 200, colorDark: "#1c1b1f", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+    });
+    
+    byId('myQrModal').classList.add('active');
+};
+
+window.closeMyQR = function() {
+    byId('myQrModal').classList.remove('active');
+};
+
+// Variable global para detener la cámara cuando cerremos el modal
+let html5QrCodeScanner = null;
+
+window.startScanQR = function() {
+    if (typeof Html5Qrcode === 'undefined') return alert('El escáner QR aún está cargando. Intenta de nuevo.');
+    
+    byId('scanQrModal').classList.add('active');
+    html5QrCodeScanner = new Html5Qrcode("qrReader");
+    
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    // Iniciamos la cámara trasera
+    html5QrCodeScanner.start({ facingMode: "environment" }, config, (decodedText) => {
+        if (decodedText.startsWith('monywissen:contact:')) {
+            html5QrCodeScanner.stop().then(() => {
+                byId('scanQrModal').classList.remove('active');
+                html5QrCodeScanner = null;
+                
+                const parts = decodedText.split(':');
+                const scannedAlias = decodeURIComponent(parts[2]);
+                const scannedPhone = decodeURIComponent(parts[3]);
+                
+                // 1. Añadir el Alias al Array (si no existe ya)
+                if(!window.tempParticipants.includes(scannedAlias)) {
+                    window.tempParticipants.push(scannedAlias);
+                }
+                
+                // 2. Guardar el teléfono y redibujar la lista
+                window.tempPhones = window.tempPhones || {};
+                window.tempPhones[scannedAlias] = scannedPhone;
+                renderParticipantList();
+                
+                alert(`✅ ¡Contacto añadido con éxito!\n\nAlias: ${scannedAlias}\nTel: ${scannedPhone}`);
+            });
+        } else {
+            alert('❌ El código escaneado no es un contacto válido de Monywissen.');
+        }
+    }, (errorMessage) => {
+        // Errores de lectura (muy rápidos, los ignoramos)
+    }).catch(err => {
+        alert("No se pudo acceder a la cámara. Revisa los permisos.");
+        stopScanQR();
+    });
+};
+
+window.stopScanQR = function() {
+    if (html5QrCodeScanner) {
+        html5QrCodeScanner.stop().then(() => {
+            html5QrCodeScanner = null;
+            byId('scanQrModal').classList.remove('active');
+        }).catch(err => {
+            byId('scanQrModal').classList.remove('active');
+        });
+    } else {
+        byId('scanQrModal').classList.remove('active');
+    }
+};
+
+window.renderParticipantList = function() {
+    const container = byId('sharedParticipantsContainer');
+    if(!container) return;
+    
+    if(window.tempParticipants.length === 0) {
+        container.innerHTML = '<div class="small" style="text-align:center; padding:12px; border:1px dashed var(--md-outline); border-radius:8px;">No hay integrantes. Agrega uno usando los botones de arriba.</div>';
+        return;
+    }
+    
+    const splitType = byId('f_sh_split') ? byId('f_sh_split').value : 'equal';
+    const defaultPct = (100 / window.tempParticipants.length).toFixed(0);
+    const p = prof();
+
+    container.innerHTML = window.tempParticipants.map(name => {
+        let pctVal = window.tempPcts[name] !== undefined ? window.tempPcts[name] : defaultPct;
+        let phoneVal = window.tempPhones[name] !== undefined ? window.tempPhones[name] : '';
+        
+        const isMe = name === p.settings.myAlias;
+        const meBadge = isMe ? '<span style="color:#0f9d58; font-size:10px; margin-left:4px;">(Tú)</span>' : '';
+        
+        return `<div style="background:var(--md-surface); padding:8px; border-radius:8px; border:1px solid var(--md-outline-variant); margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <label style="font-weight:bold; margin:0; color:var(--md-on-surface);">👤 ${name} ${meBadge}</label>
+                <button class="btn icon danger" style="padding:2px 8px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="removeParticipant('${name}')" title="Quitar Integrante">✕</button>
+            </div>
+            <div style="display:flex; gap:8px;">
+               <div style="flex:1;">
+                  <span class="small">Teléfono ID</span>
+                  <input type="tel" class="sh-phone-input" data-name="${name}" value="${phoneVal}" placeholder="+584141234567" style="padding:6px; font-size:12px; border-radius:8px; border:1px solid var(--md-outline-variant); min-height:0; width:100%;" onchange="window.tempPhones['${name}'] = this.value">
+               </div>
+               <div style="width:70px; display:${splitType==='percentage'?'block':'none'}">
+                  <span class="small">%</span>
+                  <input type="number" class="sh-pct-input" data-name="${name}" value="${pctVal}" min="0" max="100" style="padding:6px; font-size:12px; border-radius:8px; border:1px solid var(--md-outline-variant); min-height:0;" onchange="window.tempPcts['${name}'] = this.value">
+               </div>
+            </div>
+        </div>`;
+    }).join('');
+};
+
+window.addParticipantManual = function() {
+    showDialog({
+        title: 'Agregar Integrante',
+        msg: 'Ingresa el nombre o alias de la persona:',
+        input: true, hideCancel: false,
+        onConfirm: (val) => {
+            const name = val.trim();
+            if(!name) return;
+            if(window.tempParticipants.includes(name)) return alert('Esta persona ya está en el grupo.');
+            
+            window.tempParticipants.push(name);
+            renderParticipantList();
+        }
+    });
+};
+
+window.removeParticipant = function(name) {
+    window.tempParticipants = window.tempParticipants.filter(n => n !== name);
+    delete window.tempPhones[name];
+    delete window.tempPcts[name];
+    renderParticipantList();
+};
+
+function openAddSharedExpense(accIdx, expIdx = null) {
+    modalType = 'sharedExpense'; modalIndex = { accIdx, expIdx };
+    const acc = prof().sharedAccounts[accIdx];
+    let e = expIdx !== null ? acc.expenses[expIdx] : { desc: '', amount: '', paidBy: acc.participants[0], date: today() };
+    
+    byId('modalTitle').textContent = expIdx !== null ? 'Editar Gasto Compartido' : 'Registrar Gasto al Grupo';
+    byId('btnDelete').style.display = expIdx !== null ? 'inline-flex' : 'none';
+    byId('btnSave').style.display = 'inline-flex';
+
+    let options = (acc.participants || []).map(p => `<option value="${p}" ${e.paidBy===p?'selected':''}>👤 ${p}</option>`).join('');
+
+    byId('modalBody').innerHTML = `
+        <div class="grid grid2">
+            <div><label>¿Qué se compró?</label><input id="f_she_desc" value="${e.desc}" required></div>
+            <div><label>Monto Total ($)</label><input id="f_she_amount" type="number" value="${e.amount}" required></div>
+            <div><label>Fecha del Pago</label><input id="f_she_date" type="date" value="${e.date}" required></div>
+            <div><label>¿Quién puso el dinero?</label><select id="f_she_paidby">${options}</select></div>
+        </div>
+    `;
+    byId('modal').classList.add('active');
+}
+
+function toggleTransferStatus(accIdx, from, to, amount) {
+    const p = prof();
+    const acc = p.sharedAccounts[accIdx];
+    acc.transfersData = acc.transfersData || {};
+    const key = `${from}_to_${to}`;
+    let tData = acc.transfersData[key] || { status: 'pending' };
+    
+    const myGlobalAlias = p.settings.myAlias || '';
+
+    if (tData.status === 'completed') {
+        tData.status = 'pending';
+        if (tData.linkedId) {
+            p.incomes = p.incomes.filter(x => x.id !== tData.linkedId);
+            p.expenses = p.expenses.filter(x => x.id !== tData.linkedId);
+            delete tData.linkedId;
+        }
+    } else {
+        tData.status = 'completed';
+        const isMeFrom = from === myGlobalAlias;
+        const isMeTo = to === myGlobalAlias;
+        
+        if (isMeFrom || isMeTo) {
+            tData.linkedId = uid();
+            const dateStr = today();
+            if (isMeFrom) {
+                p.expenses.push({ id: tData.linkedId, name: `Liq. Grupo: ${acc.name}`, desc: `Pagué deuda a ${to}`, amount: amount, freq: 'one-time', date: dateStr, flex: false });
+            } else if (isMeTo) {
+                p.incomes.push({ id: tData.linkedId, name: `Liq. Grupo: ${acc.name}`, desc: `Recibí dinero de ${from}`, amount: amount, freq: 'one-time', date: dateStr });
+            }
+        }
+    }
+    acc.transfersData[key] = tData;
+    saveApp();
+    renderSharedAccountDetail(accIdx);
+}
+// --- EXPORTAR REPORTE GRUPAL A WHATSAPP ---
+
+async function shareSharedAccountWhatsApp(idx) {
+    const acc = prof().sharedAccounts[idx];
+    const s = calculateSharedSettlement(acc);
+    
+    let t = `*📊 CUENTAS: ${acc.name.toUpperCase()}*\n`;
+    t += `_Reporte de división de gastos grupales_\n\n`;
+    t += `💰 *Gasto Total:* ${fmt(s.total)}\n`;
+    t += `⚙️ *Reparto:* ${acc.splitType==='equal'?'Equitativo (Partes iguales)':'Por Porcentajes'}\n\n`;
+    
+    t += `🛍️ *Detalle de Gastos:*\n`;
+    (acc.expenses || []).forEach(e => { t += `• ${e.desc}: ${fmt(e.amount)} (Pagó: ${e.paidBy})\n`; });
+    
+    t += `\n💳 *Transferencias de Liquidación:*\n`;
+    if(s.transfers.length === 0) {
+        t += `✅ ¡Todo saldado! Nadie debe dinero.\n`;
+    } else {
+        s.transfers.forEach(trans => {
+            const statusKey = `${trans.from}_to_${trans.to}`;
+            const isDone = ((acc.transfersData || {})[statusKey] || {}).status === 'completed';
+            t += `• *${trans.from}* ➔ ${fmt(trans.amount)} a *${trans.to}* ${isDone ? '✅ [LISTO]' : '⏳ [PENDIENTE]'}\n`;
+        });
+    }
+
+    if (window.Capacitor && window.Capacitor.isPluginAvailable('Share')) {
+        try {
+            await window.Capacitor.Plugins.Share.share({ title: `Cuentas - ${acc.name}`, text: t });
+        } catch(e) { console.log(e); }
+    } else {
+        window.open(`https://wa.me/?text=${encodeURIComponent(t)}`, '_blank');
+    }
+}
+
+// =========================================================================
+// TARJETAS DEL PERFIL Y RENDERIZADO
+// =========================================================================
+
+window.toggleProfileCards = function(type) {
+    const isContact = type === 'contact';
+    
+    // Cambiar vista de tarjeta
+    byId('viewContactCard').style.display = isContact ? 'block' : 'none';
+    byId('viewPaymentCard').style.display = isContact ? 'none' : 'block';
+    
+    // Cambiar estilos de las pestañas
+    byId('tabContactCard').style.background = isContact ? 'var(--md-surface)' : 'transparent';
+    byId('tabContactCard').style.color = isContact ? 'var(--md-primary)' : 'var(--md-on-surface-variant)';
+    byId('tabContactCard').style.boxShadow = isContact ? '0 1px 3px rgba(0,0,0,0.1)' : 'none';
+
+    byId('tabPaymentCard').style.background = !isContact ? 'var(--md-surface)' : 'transparent';
+    byId('tabPaymentCard').style.color = !isContact ? 'var(--md-primary)' : 'var(--md-on-surface-variant)';
+    byId('tabPaymentCard').style.boxShadow = !isContact ? '0 1px 3px rgba(0,0,0,0.1)' : 'none';
+    
+    // Mensaje de pista dinámico
+    byId('lblCardHint').textContent = isContact ? 'Muestra tu QR (🔲) a un amigo para que te agregue a sus grupos.' : 'Estos datos se enviarán cuando decidas cobrar por WhatsApp (💬).';
+};
+
+window.renderPaymentMethods = function() {
+    const p = prof();
+    const pmDiv = byId('paymentMethodsList');
+    if (!pmDiv) return;
+    
+    const pms = p.settings.paymentMethods || [];
+    if (pms.length === 0) {
+        pmDiv.innerHTML = '<div class="small" style="text-align:center; padding:12px; background:var(--md-surface-variant); border-radius:8px;">No has agregado cuentas. Toca (+) arriba.</div>';
+    } else {
+        pmDiv.innerHTML = pms.map(m => `
+            <div style="padding:10px; background:var(--md-surface-variant); border:1px solid var(--md-outline-variant); border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-weight:bold; font-size:13px; color:var(--md-on-surface); margin-bottom:2px;">🏦 ${m.bank}</div>
+                    <div style="font-size:11px; color:var(--md-on-surface-variant);">
+                        ${m.account ? `🔢 ${m.account}` : (m.phone ? `📱 ${m.phone}` : `👤 ${m.name}`)}
+                    </div>
+                </div>
+                <div style="display:flex; gap:2px; align-items:center;">
+                    <button class="btn icon" style="padding:4px; min-height:0; width:auto; border:none; color:var(--md-primary); background:transparent; font-size:12px;" onclick="promptCreatePaymentMethod('${m.id}')">✏️</button>
+                    <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:12px;" onclick="deletePaymentMethod('${m.id}')">✕</button>
+                </div>
+            </div>
+        `).join('');
+    }
+};
+
+window.openProfileModal = function() {
+    const p = prof(); p.settings = p.settings || {}; 
+    
+    // Restaurar siempre a la tarjeta de contacto al abrir
+    toggleProfileCards('contact');
+    
+    if (byId('lblCurrentProfileName')) byId('lblCurrentProfileName').textContent = currentProfile || 'Perfil';
+    if (byId('lblCurrentAlias')) byId('lblCurrentAlias').textContent = p.settings.myAlias || 'Sin Alias';
+    if (byId('lblCurrentPhone')) byId('lblCurrentPhone').textContent = p.settings.myPhone || 'Sin Número';
+    
+    renderPaymentMethods(); 
+    byId('profileModal').classList.add('active');
+};
 
 function renderDashboard() {
   const p = prof();
@@ -2376,25 +3635,65 @@ function renderDashboard() {
      else if (u.isDelayed) { cBg = '#f3e8fd'; cTxt = '#9c27b0'; contextText = `Planeado: ${formatDate(u.originalDate)} ➔ Cobro: ${formatDate(u.date)}`; } 
      else {
          if (u.type === 'income') { cBg = '#e6f4ea'; cTxt = '#0f9d58'; } 
-         else if (u.type === 'expense' || u.type === 'debt') { cBg = '#e8f0fe'; cTxt = '#1a73e8'; } 
-         else if (u.type === 'cashea') { cBg = '#fef7e0'; cTxt = '#fbbc04'; } 
-         else if (u.type === 'quoota') { cBg = '#feefe3'; cTxt = '#e8710a'; } 
+         else if (u.type === 'expense') { cBg = '#e8f0fe'; cTxt = '#1a73e8'; } 
          else if (u.type === 'savings') { cBg = '#e0f2f1'; cTxt = '#00897b'; } 
+         else if (u.type === 'debt' || u.type === 'debt_cut') { cBg = (u.ref.effectiveColor || '#d93025') + '15'; cTxt = u.ref.effectiveColor || '#d93025'; }
          else { cBg = '#f5f7fb'; cTxt = '#49454f'; }
          contextText = formatDate(u.date);
      }
      
-     // NUEVO PREFIJO: pp -
      const prefix = u.isDelayed ? 'pp - ' : '';
 
      html += `<div style="background:${cBg};color:${cTxt};padding:12px;border-radius:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <div><div style="font-weight:700;font-size:14px">${prefix}${u.label}</div><div style="font-size:11px;opacity:0.8">${contextText}</div></div>
-        <div style="text-align:right"><div style="font-weight:800;font-size:14px">${u.amt !== 0 ? fmt(u.amt) : '-'}</div>
+        <div style="text-align:right">
+          <div style="font-weight:900;font-size:15px">${u.amt !== 0 ? fmt(u.amt) : '-'}</div>
+          <div style="font-size:11px; color:var(--md-outline); font-weight:bold; margin-top:2px;">Saldo Restante: <span style="color:var(--md-primary)">${fmt(u.balance)}</span></div>
           ${!u.done && u.amt !== 0 ? `<button class="btn primary" style="padding:4px 10px;min-height:0;font-size:10px;margin-top:6px;border-radius:6px;background:${cTxt};color:#fff;border:none;" onclick="markCompleted('${u.type}', '${u.ref.id}', '${u.originalDate}')">Adelantar / ✔</button>` : ''}
         </div>
      </div>`;
   });
   if(byId('upcomingList')) byId('upcomingList').innerHTML = html;
+}
+
+function renderSettings() {
+  const p = prof();
+  byId('planStart').value = p.settings.planStart;
+  byId('planEnd').value = p.settings.planEnd;
+  byId('minBalance').value = p.settings.minBalance;
+  byId('delayDays').value = p.settings.delayDays;
+  byId('openingBalance').value = p.settings.openingBalance;
+  byId('freeSpend').value = p.settings.freeSpend;
+  
+  // NUEVO: Carga la hora guardada en el input del reloj de ajustes
+  if (byId('notifTimeInput')) {
+      byId('notifTimeInput').value = p.settings.notifTime || '08:00';
+  }
+  
+  const listDiv = byId('customDebtsList');
+  if (listDiv) {
+      const cd = p.settings.customDebts || [];
+      if (cd.length === 0) {
+          listDiv.innerHTML = '<div class="small" style="text-align:center; padding:16px;">No has creado tipos de deudas.</div>';
+      } else {
+          listDiv.innerHTML = cd.map(c => `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--md-surface); border:1px solid var(--md-outline-variant); border-radius:12px; margin-bottom:8px;">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                      <div style="width:20px; height:20px; border-radius:50%; background:${c.color};"></div>
+                      <div>
+                          <div style="font-weight:bold; font-size:14px;">${c.name}</div>
+                          <div style="font-size:10px; color:var(--md-outline);">${c.freq === 'weekly' ? 'Semanal' : c.freq === 'biweekly' ? 'Quincenal' : 'Mensual'}</div>
+                      </div>
+                  </div>
+                  <div style="display:flex; gap:4px;">
+                      <button class="btn" style="padding:6px; min-height:0; width:auto; border:none; color:var(--md-primary); background:transparent;" onclick="promptCreateCustomDebt('${c.id}')">✎</button>
+                      <button class="btn danger" style="padding:6px; min-height:0; width:auto; border:none;" onclick="deleteCustomDebt('${c.id}')">🗑️</button>
+                  </div>
+              </div>
+          `).join('');
+      }
+  }
+  
 }
 
 initUI();
