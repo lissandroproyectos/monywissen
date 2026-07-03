@@ -17,28 +17,30 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Dependencies
-        run: npm install
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Add Android Platform
-        run: npx cap add android
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Add Android Platform and Assets
+        run: |
+          npx cap add android
+          npm install -D @capacitor/assets
+          npx @capacitor/assets generate --android
 
       - name: Apply Custom Configurations
         run: |
-          # 1. Copiar google-services.json si existe
+          # 1. Copiar google-services.json
           cp google-services.json android/app/ || true
           
           # 2. Configurar strings.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Monywissen</string><string name="title_activity_main">Monywissen</string><string name="server_client_id">987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2.apps.googleusercontent.com</string></resources>' > android/app/src/main/res/values/strings.xml
           
-          # 3. Sobre-escribir ÚNICAMENTE el archivo styles.xml que Capacitor ya genera, 
-          # eliminando el conflicto con themes.xml
+          # 3. Sobre-escribir styles.xml
           echo '<?xml version="1.0" encoding="utf-8"?>
           <resources>
               <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
@@ -55,6 +57,17 @@ jobs:
               </style>
           </resources>' > android/app/src/main/res/values/styles.xml
 
+      - name: Inject Google Login Return Intent
+        run: |
+          # Usamos un sed más seguro para insertar el intent-filter
+          sed -i '/<activity/a \
+              <intent-filter>\
+                  <action android:name="android.intent.action.VIEW" />\
+                  <category android:name="android.intent.category.DEFAULT" />\
+                  <category android:name="android.intent.category.BROWSABLE" />\
+                  <data android:scheme="com.googleusercontent.apps.987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2" />\
+              </intent-filter>' android/app/src/main/AndroidManifest.xml
+
       - name: Sync Capacitor Project
         run: npx cap sync android
 
@@ -66,16 +79,12 @@ jobs:
 
       - name: Sign APK
         run: |
-          echo "Intentando firmar con password: monywissen..."
-          
-          # Intentamos la firma usando la misma contraseña para ambos
           $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks monywissen-release.jks \
             --ks-key-alias "monywissen" \
             --ks-pass pass:"monywissen" \
             --key-pass pass:"monywissen" \
             android/app/build/outputs/apk/release/app-release-unsigned.apk
           
-          echo "Firma completada con éxito."
           mv android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/Monywissen-Signed.apk
 
       - name: Upload APK Artifact
