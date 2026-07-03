@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Monywissen</string>
+    <string name="title_activity_main">Monywissen</string>
+    <string name="package_name">com.monywissen.app</string>
+    <string name="custom_url_scheme">com.monywissen.app</string>
+    
+    <string name="server_client_id">987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2.apps.googleusercontent.com</string>
+</resources>
