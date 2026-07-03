@@ -3,7 +3,6 @@ node_modules/
 
 # Archivos de seguridad y secretos (¡NUNCA SUBIR!)
 android/
-*.jks
 *.keystore
 keystore_base64.txt
 

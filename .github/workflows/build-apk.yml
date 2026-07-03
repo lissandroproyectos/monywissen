@@ -66,12 +66,7 @@ jobs:
 
       - name: Sign APK
         run: |
-          echo "Decodificando keystore..."
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
-          
-          # Firmar el APK
-          # Nota: $ANDROID_HOME es la variable que apunta al SDK correcto automáticamente
-          $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks release.keystore \
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks monywissen-release.jks \
             --ks-key-alias "${{ secrets.KEYSTORE_ALIAS }}" \
             --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
             --key-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
