@@ -31,25 +31,29 @@ jobs:
 
       - name: Apply Custom Configurations
         run: |
-          # Copiar google-services.json si existe
+          # 1. Copiar google-services.json si existe
           cp google-services.json android/app/ || true
           
-          # 1. Configurar strings.xml con tu Client ID
+          # 2. Configurar strings.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Monywissen</string><string name="title_activity_main">Monywissen</string><string name="server_client_id">987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2.apps.googleusercontent.com</string></resources>' > android/app/src/main/res/values/strings.xml
           
-          # 2. Crear un themes.xml con los nombres de estilos exactos que busca el Manifest
+          # 3. Sobre-escribir ÚNICAMENTE el archivo styles.xml que Capacitor ya genera, 
+          # eliminando el conflicto con themes.xml
           echo '<?xml version="1.0" encoding="utf-8"?>
           <resources>
               <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
                   <item name="colorPrimary">@android:color/white</item>
+                  <item name="colorPrimaryDark">@android:color/white</item>
+                  <item name="colorAccent">@android:color/black</item>
               </style>
               <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
                   <item name="windowNoTitle">true</item>
                   <item name="android:windowFullscreen">true</item>
               </style>
               <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
+                  <item name="android:background">@drawable/splash</item>
               </style>
-          </resources>' > android/app/src/main/res/values/themes.xml
+          </resources>' > android/app/src/main/res/values/styles.xml
 
       - name: Sync Capacitor Project
         run: npx cap sync android
