@@ -59,14 +59,19 @@ jobs:
 
       - name: Inject Google Login Return Intent
         run: |
-          # Usamos un sed más seguro para insertar el intent-filter
-          sed -i '/<activity/a \
-              <intent-filter>\
-                  <action android:name="android.intent.action.VIEW" />\
-                  <category android:name="android.intent.category.DEFAULT" />\
-                  <category android:name="android.intent.category.BROWSABLE" />\
-                  <data android:scheme="com.googleusercontent.apps.987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2" />\
-              </intent-filter>' android/app/src/main/AndroidManifest.xml
+          # Creamos un archivo temporal con el intent-filter correcto
+          cat <<EOF > intent_filter.xml
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.googleusercontent.apps.987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2" />
+            </intent-filter>
+          EOF
+          
+          # Insertamos el contenido del archivo temporal justo después de la etiqueta <activity
+          # Usamos awk en lugar de sed porque es mucho más estable para bloques de código
+          awk '/<activity/{print; print "            <intent-filter>"; print "                <action android:name=\"android.intent.action.VIEW\" />"; print "                <category android:name=\"android.intent.category.DEFAULT\" />"; print "                <category android:name=\"android.intent.category.BROWSABLE\" />"; print "                <data android:scheme=\"com.googleusercontent.apps.987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2\" />"; print "            </intent-filter>"; next}1' android/app/src/main/AndroidManifest.xml > temp.xml && mv temp.xml android/app/src/main/AndroidManifest.xml
 
       - name: Sync Capacitor Project
         run: npx cap sync android
