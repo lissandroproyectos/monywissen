@@ -73,6 +73,8 @@ jobs:
           alias: ${{ secrets.KEYSTORE_ALIAS }}
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          # Esta línea es la clave para evitar el error de build-tools:
+          buildToolsVersion: 34.0.0
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
