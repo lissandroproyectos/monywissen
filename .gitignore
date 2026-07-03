@@ -1,0 +1,15 @@
+# Dependencias
+node_modules/
+
+# Carpetas nativas (GitHub Actions las crea por nosotros)
+android/
+ios/
+
+# Archivos de seguridad y secretos (¡NUNCA SUBIR!)
+*.jks
+*.keystore
+keystore_base64.txt
+
+# Archivos basura del sistema operativo
+.DS_Store
+Thumbs.db
