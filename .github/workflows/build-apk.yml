@@ -26,6 +26,10 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      # NUEVO PASO CRUCIAL: Generar la carpeta dist
+      - name: Build Web Assets
+        run: npm run build
+
       - name: Add Android Platform and Assets
         run: |
           npx cap add android
@@ -34,13 +38,10 @@ jobs:
 
       - name: Apply Custom Configurations
         run: |
-          # 1. Copiar google-services.json
           cp google-services.json android/app/ || true
           
-          # 2. Configurar strings.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Monywissen</string><string name="title_activity_main">Monywissen</string><string name="server_client_id">987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2.apps.googleusercontent.com</string></resources>' > android/app/src/main/res/values/strings.xml
           
-          # 3. Sobre-escribir styles.xml
           echo '<?xml version="1.0" encoding="utf-8"?>
           <resources>
               <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
