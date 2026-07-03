@@ -26,8 +26,6 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Add Android Platform
-        run: npx cap add android
 
       # Inyectar Google Services y el Client ID dinámicamente
       - name: Inject Google Auth Configuration
