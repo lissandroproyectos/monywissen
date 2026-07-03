@@ -66,12 +66,16 @@ jobs:
 
       - name: Sign APK
         run: |
+          echo "Intentando firmar con password: monywissen..."
+          
+          # Intentamos la firma usando la misma contraseña para ambos
           $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks monywissen-release.jks \
-            --ks-key-alias "${{ secrets.KEYSTORE_ALIAS }}" \
-            --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
-            --key-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
+            --ks-key-alias "monywissen" \
+            --ks-pass pass:"monywissen" \
+            --key-pass pass:"monywissen" \
             android/app/build/outputs/apk/release/app-release-unsigned.apk
           
+          echo "Firma completada con éxito."
           mv android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/Monywissen-Signed.apk
 
       - name: Upload APK Artifact
