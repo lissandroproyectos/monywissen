@@ -66,12 +66,14 @@ jobs:
 
       - name: Sign APK
         run: |
+          # 1. Firmar el APK usando el archivo jks que subimos al repo
           $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks monywissen-release.jks \
             --ks-key-alias "${{ secrets.KEYSTORE_ALIAS }}" \
             --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
             --key-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
             android/app/build/outputs/apk/release/app-release-unsigned.apk
           
+          # 2. Renombrar el archivo para saber que está firmado
           mv android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/Monywissen-Signed.apk
 
       - name: Upload APK Artifact
