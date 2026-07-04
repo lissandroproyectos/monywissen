@@ -6,6 +6,11 @@
 <title>Monywissen</title>
 <style>
 :root{
+
+#appLoader { position:fixed; inset:0; background:var(--md-surface); z-index:999999; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: opacity 0.3s; }
+.spinner { width:40px; height:40px; border:4px solid var(--md-outline-variant); border-top-color:var(--md-primary); border-radius:50%; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
   --md-surface:#ffffff;
   --md-surface-variant:#f5f7fb;
   --md-primary:#1f6ddc;
@@ -176,6 +181,12 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
       }, 50);
   </script>
 </head>
+
+<div id="appLoader">
+   <div class="spinner"></div>
+   <div style="margin-top:16px; font-weight:bold; color:var(--md-primary);">Iniciando Monywissen...</div>
+</div>
+
 <body>
 
 <div class="topbar">
@@ -184,10 +195,10 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
     <div class="title" id="topTitle">Dashboard</div>
   </div>
   <div class="actions" style="align-items:center; gap:10px;">
-	<div id="requestBell" style="position:relative; cursor:pointer; display:none;" onclick="openAgendaModal('requests')">
-         <span style="font-size:20px;">🔔</span>
-         <div id="requestBadge" style="position:absolute; top:-5px; right:-5px; background:var(--md-error); color:white; font-size:10px; padding:2px 6px; border-radius:10px; font-weight:bold;">0</div>
-     </div>
+		<div id="requestBell" style="position:relative; cursor:pointer; display:none;" onclick="openSmartNotifications()">
+			 <span style="font-size:20px;">🔔</span>
+			 <div id="requestBadge" style="position:absolute; top:-5px; right:-5px; background:var(--md-error); color:white; font-size:10px; padding:2px 6px; border-radius:10px; font-weight:bold;">0</div>
+		</div>
      <button id="btnTopPrint" class="btn icon" style="padding:6px; min-height:0; font-size:18px; width:auto; border:none; background:transparent;" onclick="exportarPDF()" title="Exportar Reporte a PDF">🖨️</button>
      
      <div class="avatar" id="topAvatar" onclick="openProfileModal()" title="Gestionar Perfiles">--</div>
@@ -386,28 +397,51 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   </div>
   
   <div class="section" id="shared">
-    <div id="sharedListView">
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
-          <div class="heading" style="margin:0;">Cuentas Compartidas</div>
-          <div style="display:flex; gap:8px;">
-            <button class="btn" onclick="openAgendaModal()" style="min-height:auto; padding:8px 12px; font-size:13px;">📖 Agenda</button>
-            <button class="btn" onclick="document.getElementById('importSharedFile').click()" style="min-height:auto; padding:8px 12px; font-size:13px;">⬇️ Importar</button>
-            <button class="btn primary" onclick="openCreateSharedAccount()" style="min-height:auto; padding:8px 16px;">+ Nueva</button>
-          </div>
-        </div>
-        <div class="small" style="margin-bottom:16px;">Lleva el control de gastos grupales, comidas o compras compartidas con amigos y socios sin enredos.</div>
-        <input id="importSharedFile" type="file" accept=".mnwg,.json,.txt" style="display:none" onchange="importSharedAccount(this)">
-        
-        <!-- Contenedor de la lista que faltaba -->
-        <div id="sharedAccountsList"></div>
-      </div>
-    </div>
-    
-    <!-- Contenedor Dinámico para el Detalle del Grupo que causaba el error 'null' -->
-    <div id="sharedDetailView" style="display:none;"></div>
-  </div>
-  
+	  <div class="card" style="padding:0; overflow:hidden;">
+		<div class="tabs" style="margin-bottom:0; background:var(--md-surface-variant); border-bottom:1px solid var(--md-outline-variant);">
+		   <div class="tab active" onclick="switchSharedTab('view-sh-groups', this)">👥 Grupos</div>
+		   <div class="tab" onclick="switchSharedTab('view-sh-p2p', this)" id="tabP2PMain">💸 Préstamos <span id="p2pCount" style="color:var(--md-error); font-weight:900;"></span></div>
+		   <div class="tab" onclick="switchSharedTab('view-sh-agenda', this)" id="tabAgendaMain">📖 Agenda <span id="reqCount" style="color:var(--md-error); font-weight:900;"></span></div>
+		</div>
+
+		<div id="view-sh-groups" class="tab-content active" style="padding:16px;">
+			<div id="sharedListView">
+				<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+				  <div class="heading" style="margin:0;">Cuentas Compartidas</div>
+				  <div style="display:flex; gap:8px;">
+					<button class="btn" onclick="document.getElementById('importSharedFile').click()" style="min-height:auto; padding:8px 12px; font-size:13px;">⬇️ Importar</button>
+					<button class="btn primary" onclick="openCreateSharedAccount()" style="min-height:auto; padding:8px 16px;">+ Nuevo Grupo</button>
+				  </div>
+				</div>
+				<input id="importSharedFile" type="file" accept=".mnwg,.json,.txt" style="display:none" onchange="importSharedAccount(this)">
+				<div id="sharedAccountsList"></div>
+			</div>
+			<div id="sharedDetailView" style="display:none;"></div>
+		</div>
+
+		<div id="view-sh-p2p" class="tab-content" style="padding:16px;">
+			<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+				<div class="heading" style="margin:0;">Préstamos Personales</div>
+				<button class="btn primary" onclick="requestP2PLoan()" style="min-height:auto; padding:8px 16px;">+ Pedir Prestado</button>
+			</div>
+			<div class="small" style="margin-bottom:16px;">Solicita y registra préstamos con tus contactos de la agenda de forma segura.</div>
+			<div id="p2pLoansList"></div>
+		</div>
+
+		<div id="view-sh-agenda" class="tab-content" style="padding:16px;">
+			<div style="display:flex; gap:6px; margin-bottom:16px; flex-wrap:nowrap; overflow-x:auto;">
+				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0;" onclick="promptAddContactManual()">➕ Crear nuevo</button>
+				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0; background:var(--md-on-surface); border-color:var(--md-on-surface);" onclick="startScanQR()">📷 Escanear QR</button>
+				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0; background:#0f9d58; border-color:#0f9d58;" onclick="searchContactInCloud()">🔍 Buscar en Nube</button>
+			</div>
+			
+			<div id="requestsList" style="margin-bottom:16px;"></div>
+			<div class="heading" style="font-size:14px; margin-bottom:12px;">Mis Contactos</div>
+			<div id="agendaContactsList"></div>
+		</div>
+	  </div>
+	</div>
+	
   <div class="section" id="settings">
     <div class="card">
       <div class="heading">Ajustes del Sistema</div>
@@ -639,7 +673,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
     <div style="padding: 16px;">
         <div id="viewAgenda">
              <div style="display:flex; gap:6px; margin-bottom:16px; flex-wrap:nowrap; overflow-x:auto;">
-				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0;" onclick="promptAddContactManual()">➕ Manual</button>
+				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0;" onclick="promptAddContactManual()">➕ Seleccionar</button>
 				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0; background:var(--md-on-surface); border-color:var(--md-on-surface);" onclick="startScanQR()">📷 QR</button>
 				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0; background:#0f9d58; border-color:#0f9d58;" onclick="searchContactInCloud()">🔍 Nube</button>
 			</div>
@@ -768,6 +802,7 @@ window.showToast = function(msg, icon = '✅') {
 
 window.initFirebaseAuth = function() {
     auth.onAuthStateChanged(user => {
+        if(byId('appLoader')) { byId('appLoader').style.opacity = '0'; setTimeout(()=>byId('appLoader').style.display='none', 300); }
         if (user) {
             console.log("✅ Usuario verificado con Google:", user.email);
             if(byId('authModal')) byId('authModal').classList.remove('active');
@@ -890,7 +925,8 @@ window.promptFirstSetup = function(email) {
             const p = prof();
             p.settings.myAlias = alias;
             p.settings.myPhone = formatSmartPhone(phoneInput); 
-            finishLoginSetup(email);
+            showToast("Perfil guardado. Ahora configura una cuenta bancaria.", "✅");
+            promptCreatePaymentMethod(null, true, email); // Pasamos flags especiales
         }
     });
 };
@@ -900,6 +936,8 @@ window.finishLoginSetup = function(email) {
     syncUserProfileToCloud(); 
     startFirestoreSync(email); // El radar ahora busca por email
     initFriendshipListener(email); // El Inbox ahora escucha por email
+	
+	initP2PListener();
     
     if (byId('lblCurrentPhone')) byId('lblCurrentPhone').textContent = prof().settings.myPhone;
     if (byId('lblCurrentAlias')) byId('lblCurrentAlias').textContent = prof().settings.myAlias;
@@ -1448,6 +1486,7 @@ function openCreate(type, forceOneTime = false){
   byId('modalBody').innerHTML=html;
   byId('modal').classList.add('active');
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
+  if(type==='expense'){toggleFreqOpts();}
 }
 
 function openEdit(type, idx) {
@@ -1475,6 +1514,7 @@ function openEdit(type, idx) {
   byId('modalBody').innerHTML=html;
   byId('modal').classList.add('active');
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
+  if(type==='expense'){toggleFreqOpts();} 
   if(type === 'saving') setTimeout(renderDeliveryPreviews, 100);
 }
 
@@ -2117,12 +2157,22 @@ function saveModal(){
     if (window.isSingleTransaction) {
         const desc = byId('f_desc').value.trim();
         const date = byId('f_date').value || today();
-        obj={id:i!==null?p.incomes[i].id:uid(),name,amount,freq:'one-time',date,desc};
+        const id = i !== null ? p.incomes[i].id : uid();
+        obj={ id, name, amount, freq: 'one-time', date, desc };
+        
+        if(i===null) {
+            p.incomes.push(obj);
+            // ¡MAGIA! Lo marcamos como completado automáticamente al crearlo
+            p.overrides = p.overrides || {};
+            p.overrides[`income_${id}_${date}`] = { actualDate: date, done: true };
+        } else {
+            p.incomes[i]=obj;
+        }
     } else {
         const freq=byId('f_freq').value;
         obj={id:i!==null?p.incomes[i].id:uid(),name,amount,freq,day:freq!=='one-time'?(+byId('f_day').value||1):undefined,date:freq==='one-time'?(byId('f_date')?byId('f_date').value:today()):undefined};
+        if(i===null)p.incomes.push(obj);else p.incomes[i]=obj;
     }
-    if(i===null)p.incomes.push(obj);else p.incomes[i]=obj;
   }
   else if(t==='expense'){
     const amount=parseFloat(byId('f_amount').value)||0;
@@ -2130,12 +2180,22 @@ function saveModal(){
     if (window.isSingleTransaction) {
         const desc = byId('f_desc').value.trim();
         const date = byId('f_date').value || today();
-        obj={id:i!==null?p.p.expenses[i].id:uid(),name,amount,freq:'one-time',date,desc,flex:false};
+        const id = i !== null ? p.expenses[i].id : uid();
+        obj={ id, name, amount, freq: 'one-time', date, desc, flex: false };
+        
+        if(i===null) {
+            p.expenses.push(obj);
+            // ¡MAGIA! Lo marcamos como completado automáticamente al crearlo
+            p.overrides = p.overrides || {};
+            p.overrides[`expense_${id}_${date}`] = { actualDate: date, done: true };
+        } else {
+            p.expenses[i]=obj;
+        }
     } else {
         const freq=byId('f_freq').value;
         obj={id:i!==null?p.expenses[i].id:uid(),name,amount,freq,day:freq!=='one-time'?(+byId('f_day').value||1):undefined,date:freq==='one-time'?(byId('f_date')?byId('f_date').value:today()):undefined,end:byId('f_end')?(byId('f_end').value||''):'',flex:byId('f_flex')?byId('f_flex').value==='true':false};
+        if(i===null)p.expenses.push(obj);else p.expenses[i]=obj;
     }
-    if(i===null)p.expenses.push(obj);else p.expenses[i]=obj;
   }
   else if(t==='debt'){
     const isCashea = byId('f_type').value === 'cashea' || byId('f_type').value === 'quoota';
@@ -2298,7 +2358,7 @@ function incomeForm(x={}){
   return '<div class="grid grid2">'+
     '<div><label>Nombre</label><input id="f_name" value="'+(x.name||'')+'" required></div>'+
     '<div><label>Monto</label><input id="f_amount" type="number" value="'+(x.amount||'')+'" required></div>'+
-    '<div><label>Frecuencia</label><select id="f_freq" onchange="updateDaySelector()">'+
+    '<div><label>Frecuencia</label><select id="f_freq" onchange="updateDaySelector(); toggleFreqOpts();">'+
       '<option value="one-time"'+(freq==='one-time'?' selected':'')+'>Una vez</option>'+
       '<option value="weekly"'+(freq==='weekly'?' selected':'')+'>Semanal</option>'+
       '<option value="biweekly"'+(freq==='biweekly'?' selected':'')+'>Bisemanal</option>'+
@@ -2316,7 +2376,7 @@ function expenseForm(x={}){
   return '<div class="grid grid2">'+
     '<div><label>Nombre</label><input id="f_name" value="'+(x.name||'')+'" required></div>'+
     '<div><label>Monto</label><input id="f_amount" type="number" value="'+(x.amount||'')+'" required></div>'+
-    '<div><label>Frecuencia</label><select id="f_freq" onchange="updateDaySelector()">'+
+    '<div><label>Frecuencia</label><select id="f_freq" onchange="updateDaySelector(); toggleFreqOpts();">'+
       '<option value="one-time"'+(freq==='one-time'?' selected':'')+'>Una vez</option>'+
       '<option value="weekly"'+(freq==='weekly'?' selected':'')+'>Semanal</option>'+
       '<option value="biweekly"'+(freq==='biweekly'?' selected':'')+'>Bisemanal</option>'+
@@ -2324,10 +2384,19 @@ function expenseForm(x={}){
       '<option value="monthly"'+(freq==='monthly'?' selected':'')+'>Mensual</option>'+
     '</select></div>'+
     '<div id="daySel">'+makeDaySelector(freq,dayVal)+'</div>'+
-    '<div><label>Fin (opcional)</label><input id="f_end" type="date" value="'+(x.end||'')+'"></div>'+
-    '<div><label>Flexible</label><select id="f_flex"><option value="true"'+(x.flex?' selected':'')+'>Sí</option><option value="false"'+(!x.flex?' selected':'')+'>No</option></select></div>'+
-  '</div>';
+    '<div id="mod_freq_opts" class="grid grid2" style="grid-column:1/-1;">' +
+	'<div><label>Fin (opcional)</label><input id="f_end" type="date" value="'+(x.end||'')+'"></div>'+
+	'<div><label>Flexible</label><select id="f_flex"><option value="true"'+(x.flex?' selected':'')+'>Sí</option><option value="false"'+(!x.flex?' selected':'')+'>No</option></select></div>'+
+	'</div>';
 }
+
+window.toggleFreqOpts = function() {
+    const freqEl = byId('f_freq');
+    const opts = byId('mod_freq_opts');
+    if(freqEl && opts) {
+        opts.style.display = (freqEl.value === 'one-time') ? 'none' : 'grid';
+    }
+};
 
 function showDebtProjection() {
     const el = byId('debtProjection');
@@ -2693,14 +2762,14 @@ function moveSavings(action) {
 // MOTOR DE MÉTODOS DE PAGO Y COBRO (WHATSAPP)
 // =========================================================================
 
-window.promptCreatePaymentMethod = function(editId = null) {
+window.promptCreatePaymentMethod = function(editId = null, isFirstSetup = false, setupEmail = null) {
     const p = prof();
     p.settings.paymentMethods = p.settings.paymentMethods || [];
     let m = { bank: '', name: '', account: '', idCard: '', phone: '', email: '' };
 
-    if (editId) {
-        const found = p.settings.paymentMethods.find(x => x.id === editId);
-        if (found) m = found;
+    if (editId) { 
+        const found = p.settings.paymentMethods.find(x => x.id === editId); 
+        if (found) m = found; 
     }
 
     const html = `
@@ -2716,27 +2785,39 @@ window.promptCreatePaymentMethod = function(editId = null) {
     `;
 
     showDialog({
-        title: editId ? 'Editar Método de Pago' : 'Nuevo Método de Pago',
-        msg: html, hideCancel: false,
+        title: editId ? 'Editar Método de Pago' : (isFirstSetup ? 'Paso Final: Agrega un Banco' : 'Nuevo Método de Pago'),
+        msg: html, 
+        hideCancel: false,
         onConfirm: () => {
             const bank = byId('pm_bank').value.trim();
-            if(!bank) return showDialog({title:'Error', msg:'La Entidad Bancaria es obligatoria.', hideCancel:true});
-
-            const newData = {
-                id: editId || ('pm_' + Date.now()), bank,
-                name: byId('pm_name').value.trim(),
-                account: byId('pm_account').value.trim(),
-                idCard: byId('pm_idCard').value.trim(),
-                phone: byId('pm_phone').value.trim(),
-                email: byId('pm_email').value.trim()
+            if(!bank) {
+                // Si falta el banco, mostramos el error, pero no abortamos el FirstSetup
+                showDialog({title:'Error', msg:'La Entidad Bancaria es obligatoria.', hideCancel:true});
+                return; 
+            }
+            const newData = { 
+                id: editId || ('pm_' + Date.now()), 
+                bank, 
+                name: byId('pm_name').value.trim(), 
+                account: byId('pm_account').value.trim(), 
+                idCard: byId('pm_idCard').value.trim(), 
+                phone: byId('pm_phone').value.trim(), 
+                email: byId('pm_email').value.trim() 
             };
-
-            if (editId) {
-                const idx = p.settings.paymentMethods.findIndex(x => x.id === editId);
-                if(idx !== -1) p.settings.paymentMethods[idx] = newData;
-            } else { p.settings.paymentMethods.push(newData); }
-
-            saveApp(); renderPaymentMethods();
+            
+            if (editId) { 
+                const idx = p.settings.paymentMethods.findIndex(x => x.id === editId); 
+                if(idx !== -1) p.settings.paymentMethods[idx] = newData; 
+            } else { 
+                p.settings.paymentMethods.push(newData); 
+            }
+            
+            saveApp(); 
+            renderPaymentMethods();
+            if(isFirstSetup) finishLoginSetup(setupEmail);
+        },
+        onCancel: () => {
+            if(isFirstSetup) finishLoginSetup(setupEmail); // Le permite omitir si cancela
         }
     });
 };
@@ -3479,6 +3560,7 @@ function showDetails(type, refId, originalDate, planDate) {
      
      if (ev.done) {
          html += '<div><span class="small">Estado actual:</span><br><b style="color:#0f9d58">✔ Pagado/Completado</b></div>';
+         html += `<button class="btn danger" style="margin-top:12px; width:100%; border-radius:8px;" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer / Marcar como Pendiente</button>`;
      } else {
          html += '<hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 8px 0;">';
          html += '<button class="btn primary" style="width:100%" onclick="markCompleted(\'' + ev.type + '\', \'' + ev.ref.id + '\', \'' + ev.originalDate + '\')">Gestionar / Completar Pago</button>';
@@ -3512,6 +3594,17 @@ function showDetails(type, refId, originalDate, planDate) {
      byId('modalBody').innerHTML = html;
      byId('modal').classList.add('active');
 }
+
+window.revertCompleted = function(type, refId, originalDate) {
+    if(confirm("¿Seguro que deseas deshacer este pago? Volverá a descontarse/sumarse de tu saldo actual.")) {
+        const p = prof();
+        const key = type + '_' + refId + '_' + originalDate;
+        if(p.overrides && p.overrides[key]) {
+            delete p.overrides[key];
+            saveApp(); closeModal(); runPlan(); showToast("Pago revertido con éxito", "🔄");
+        }
+    }
+};
 
 // =========================================================================
 // MOTOR DE CUENTAS COMPARTIDAS (ALGORITMO DE LIQUIDACIÓN GRUPAL)
@@ -3890,7 +3983,7 @@ function openCreateSharedAccount(idx = null) {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
                     <div class="small" style="font-weight:bold; color:var(--md-primary);">Directorio de Integrantes:</div>
                     <div style="display:flex; gap:6px;">
-                        <button class="btn" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; background:var(--md-surface);" onclick="addParticipantManual()">➕ Manual</button>
+                        <button class="btn" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; background:var(--md-surface);" onclick="addParticipantManual()">➕ Agregar</button>
                         <button class="btn primary" style="padding:4px 8px; min-height:0; width:auto; font-size:11px;" onclick="startScanQR()">📷 QR</button>
                         <button class="btn primary" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; background:#0f9d58; border-color:#0f9d58;" onclick="searchContactInCloud()">🔍 Nube</button>
                     </div>
@@ -4287,20 +4380,28 @@ window.executeCloudSearch = function() {
 
             snap.docs.forEach(doc => {
                 const u = doc.data();
-                
+                const otherEmail = u.email;
+
+                // 🛡️ REGLA 1: Si él te bloqueó, lo ignoramos por completo (Invisibilidad)
+                if (window.blockedByThem && window.blockedByThem.includes(otherEmail)) return;
+
                 let btnHtml = '';
-                const isMe = u.email === myEmail;
-                const isContact = contacts.some(c => c.email === u.email);
-                const isPending = window.outgoingRequests && window.outgoingRequests.some(r => r.receiver === u.email);
+                const isMe = otherEmail === myEmail;
+                const isContact = contacts.some(c => c.email === otherEmail);
+                const isPending = window.outgoingRequests && window.outgoingRequests.some(r => r.receiver === otherEmail);
+                const isBlockedByMe = window.blockedByMe && window.blockedByMe.includes(otherEmail);
 
                 if (isMe) {
                     btnHtml = `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:11px; background:var(--md-surface-variant); color:var(--md-primary); border:none;" disabled>✅ Eres Tú</button>`;
+                } else if (isBlockedByMe) {
+                    // 🛡️ REGLA 2: Si tú lo bloqueaste, le muestras el botón para desbloquear
+                    btnHtml = `<button class="btn danger" style="padding:6px 12px; min-height:0; width:auto; font-size:11px;" onclick="addFromCloud(this, '${u.alias.replace(/'/g, "\\'")}', '${otherEmail}', '${u.phone || ''}', true)">🔓 Desbloquear</button>`;
                 } else if (isContact) {
                     btnHtml = `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:11px; background:var(--md-surface-variant); color:#0f9d58; border:none;" disabled>✅ En Agenda</button>`;
                 } else if (isPending) {
                     btnHtml = `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:11px; background:var(--md-surface-variant); color:#e8710a; border:none;" disabled>⏳ Enviada</button>`;
                 } else {
-                    btnHtml = `<button class="btn primary" style="padding:6px 12px; min-height:0; width:auto; font-size:11px;" onclick="addFromCloud(this, '${u.alias.replace(/'/g, "\\'")}', '${u.email}', '${u.phone || ''}')">➕ Agregar</button>`;
+                    btnHtml = `<button class="btn primary" style="padding:6px 12px; min-height:0; width:auto; font-size:11px;" onclick="addFromCloud(this, '${u.alias.replace(/'/g, "\\'")}', '${otherEmail}', '${u.phone || ''}')">➕ Agregar</button>`;
                 }
 
                 resHtml += `
@@ -4321,9 +4422,15 @@ window.executeCloudSearch = function() {
     });
 };
 
-window.addFromCloud = function(btnElement, targetAlias, targetEmail, targetPhone) {
+window.addFromCloud = function(btnElement, targetAlias, targetEmail, targetPhone, isUnblocking = false) {
     const myEmail = prof().settings.myEmail;
-    if (targetEmail === myEmail) return; // Es el mismo usuario, el botón ya lo bloquea de todos modos
+    if (targetEmail === myEmail) return; 
+    
+    // Si estaba bloqueado, pedimos confirmación antes de actuar
+    if (isUnblocking) {
+        if(!confirm(`¿Deseas desbloquear a ${targetAlias} y enviarle una solicitud de contacto nueva?`)) return;
+    }
+    
     sendFriendRequest(targetEmail, targetAlias, targetPhone, btnElement);
 };
 
@@ -4362,11 +4469,48 @@ window.updateBellCount = function() {
 };
 
 // 2. ESCUCHAR CAMBIOS Y NOTIFICACIONES (A TU CORREO)
+window.blockedByMe = [];
+window.blockedByThem = [];
+
 window.initFriendshipListener = function(myEmail) {
     if (!window.db) return;
+    
+    const syncDeletions = (snap) => {
+        snap.docChanges().forEach(change => {
+            const data = change.doc.data();
+            const otherEmail = (data.sender === myEmail) ? data.receiver : data.sender;
+
+            // 1. Memorizar el estado de bloqueo
+            if (change.type === 'removed') {
+                window.blockedByMe = window.blockedByMe.filter(e => e !== otherEmail);
+                window.blockedByThem = window.blockedByThem.filter(e => e !== otherEmail);
+            } else {
+                if (data.status === 'blocked') {
+                    if (data.blockedBy === myEmail) {
+                        if (!window.blockedByMe.includes(otherEmail)) window.blockedByMe.push(otherEmail);
+                    } else {
+                        if (!window.blockedByThem.includes(otherEmail)) window.blockedByThem.push(otherEmail);
+                    }
+                } else {
+                    // Si cambia a 'accepted' o 'pending', se saca de las listas de bloqueo
+                    window.blockedByMe = window.blockedByMe.filter(e => e !== otherEmail);
+                    window.blockedByThem = window.blockedByThem.filter(e => e !== otherEmail);
+                }
+            }
+
+            // 2. Borrar de la agenda si aplica
+            if (data.status === 'blocked' || data.status.startsWith('deleted')) {
+                const p = prof();
+                const before = (p.settings.contacts || []).length;
+                p.settings.contacts = (p.settings.contacts || []).filter(c => c.email !== otherEmail);
+                if (before !== p.settings.contacts.length) { saveApp(); renderAgendaContacts(); }
+            }
+        });
+    };
 
     db.collection('friendships').where('receiver', '==', myEmail)
       .onSnapshot(snap => {
+          syncDeletions(snap);
           window.incomingRequests = [];
           snap.docs.forEach(doc => {
               if (doc.data().status === 'pending') window.incomingRequests.push({id: doc.id, ...doc.data()});
@@ -4376,6 +4520,7 @@ window.initFriendshipListener = function(myEmail) {
 
     db.collection('friendships').where('sender', '==', myEmail)
       .onSnapshot(snap => {
+          syncDeletions(snap);
           window.outgoingRequests = [];
           snap.docChanges().forEach(change => {
               const data = change.doc.data();
@@ -4497,12 +4642,13 @@ window.saveContact = function(alias, email, phone = '') {
 
 // 5. BORRAR/BLOQUEAR CONTACTO DESDE LA AGENDA
 window.deleteContact = function(idx) {
-    if(confirm('¿Eliminar este contacto y bloquear para que no te vuelva a agregar a grupos?')) {
+    if(confirm('¿Eliminar contacto? Desaparecerás de su agenda y él de la tuya.')) {
         const p = prof();
         const contactToDrop = p.settings.contacts[idx];
         if (window.db && p.settings.myEmail && contactToDrop.email) {
             const friendshipId = [p.settings.myEmail, contactToDrop.email].sort().join('_');
-            db.collection('friendships').doc(friendshipId).set({ status: 'blocked', blockedBy: p.settings.myEmail });
+            // Marcamos como borrado bilateral
+            db.collection('friendships').doc(friendshipId).set({ status: 'deleted_by_' + p.settings.myEmail });
         }
         p.settings.contacts.splice(idx, 1);
         saveApp(); renderAgendaContacts();
@@ -4647,6 +4793,268 @@ window.openSupport = function() {
         }
     });
 };
+
+// =========================================================================
+// SISTEMA DE PRÉSTAMOS P2P Y PESTAÑAS DE MONYSHARED
+// =========================================================================
+
+window.p2pPendingCount = 0; // Variable global para notificaciones de préstamos
+
+window.switchSharedTab = function(tabId, el) {
+    document.querySelectorAll('#shared .tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('#shared .tab-content').forEach(c => c.classList.remove('active'));
+    byId(tabId).classList.add('active');
+    if(tabId === 'view-sh-agenda') renderAgendaContacts();
+    if(tabId === 'view-sh-p2p') initP2PListener(); 
+};
+
+// Modificamos cómo se abría la agenda antes para que la campana te lleve a la pestaña correcta
+window.openSmartNotifications = function() {
+    nav('shared');
+    const reqs = (window.incomingRequests ? window.incomingRequests.length : 0) + (window.generalNotifications ? window.generalNotifications.length : 0);
+    
+    // Si tienes un préstamo urgente pero NO tienes solicitudes de amistad, te lleva directo a Préstamos
+    if ((window.p2pPendingCount || 0) > 0 && reqs === 0) {
+        switchSharedTab('view-sh-p2p', byId('tabP2PMain'));
+    } else {
+        switchSharedTab('view-sh-agenda', byId('tabAgendaMain'));
+    }
+};
+
+// La campana principal ahora suma todo de forma inteligente
+window.updateBellCount = function() {
+    const p2pCount = window.p2pPendingCount || 0;
+    const reqsCount = (window.incomingRequests ? window.incomingRequests.length : 0) + (window.generalNotifications ? window.generalNotifications.length : 0);
+    const total = reqsCount + p2pCount;
+    
+    if(byId('requestBell')) byId('requestBell').style.display = total > 0 ? 'block' : 'none';
+    if(byId('requestBadge')) byId('requestBadge').textContent = total;
+    
+    // Globos rojos independientes por pestaña
+    if(byId('reqCount')) byId('reqCount').textContent = reqsCount > 0 ? `(${reqsCount})` : '';
+    if(byId('p2pCount')) byId('p2pCount').textContent = p2pCount > 0 ? `(${p2pCount})` : '';
+};
+
+window.initP2PListener = function() {
+    if(!window.db || !prof().settings.myEmail || window.p2pListenerActive) return;
+    window.p2pListenerActive = true;
+    const myEmail = prof().settings.myEmail;
+    window.p2pData = [];
+
+    const processP2P = (snap) => {
+        snap.docChanges().forEach(change => {
+            const data = change.doc.data();
+            const idx = window.p2pData.findIndex(x => x.id === data.id);
+            if(change.type === 'removed') { if(idx>=0) window.p2pData.splice(idx,1); }
+            else { if(idx>=0) window.p2pData[idx] = data; else window.p2pData.push(data); }
+        });
+        renderP2PLoans();
+    };
+
+    db.collection('p2p_loans').where('borrowerEmail', '==', myEmail).onSnapshot(processP2P);
+    db.collection('p2p_loans').where('lenderEmail', '==', myEmail).onSnapshot(processP2P);
+};
+
+window.requestP2PLoan = function() {
+    const p = prof();
+    const contacts = p.settings.contacts || [];
+    const methods = p.settings.paymentMethods || [];
+
+    if(contacts.length === 0) return showToast("Agrega amigos a tu agenda primero.", "⚠️");
+    if(methods.length === 0) return showToast("Configura una cuenta bancaria primero.", "⚠️");
+
+    let cOpts = contacts.map(c => `<option value="${c.email}">${c.alias}</option>`).join('');
+    let mOpts = methods.map(m => `<option value="🏦 ${m.bank} - ${m.account || m.phone}">${m.bank} (${m.account || m.phone})</option>`).join('');
+
+    showDialog({
+        title: 'Solicitar Préstamo',
+        msg: `
+            <div class="grid" style="gap:10px; text-align:left;">
+                <div><label>¿A quién le pedirás?</label><select id="p2p_lender">${cOpts}</select></div>
+                <div><label>Monto ($)</label><input id="p2p_amt" type="number" required></div>
+                <div><label>Motivo</label><input id="p2p_desc" placeholder="Ej. Para completar la cena"></div>
+                <div><label>¿Dónde quieres recibirlo?</label><select id="p2p_dest">${mOpts}</select></div>
+            </div>
+        `,
+        hideCancel: false,
+        onConfirm: () => {
+            const lenderEmail = byId('p2p_lender').value;
+            const amt = parseFloat(byId('p2p_amt').value);
+            const desc = byId('p2p_desc').value.trim();
+            const dest = byId('p2p_dest').value;
+
+            if(!amt || amt <= 0) return showToast("Monto inválido", "❌");
+            
+            const lenderAlias = contacts.find(c => c.email === lenderEmail).alias;
+            const loanRef = db.collection('p2p_loans').doc(uid());
+
+            // Guarda el préstamo (Esto automáticamente iluminará la pestaña del otro usuario)
+            loanRef.set({
+                id: loanRef.id, borrowerEmail: p.settings.myEmail, borrowerAlias: p.settings.myAlias,
+                lenderEmail: lenderEmail, lenderAlias: lenderAlias, amount: amt, desc: desc,
+                borrowerAccount: dest, status: 'requested', timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            showToast("Solicitud enviada a " + lenderAlias, "✅");
+        }
+    });
+};
+
+window.renderP2PLoans = function() {
+    const list = byId('p2pLoansList');
+    if(!list) return;
+    const myEmail = prof().settings.myEmail;
+    
+    // ORDEN CRONOLÓGICO INTELIGENTE: Los más recientes siempre de primeros
+    window.p2pData.sort((a,b) => {
+        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : Date.now();
+        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : Date.now();
+        return timeB - timeA;
+    });
+
+    let pendingActions = 0; 
+
+    if(window.p2pData.length === 0) {
+        list.innerHTML = '<div class="small" style="text-align:center; padding:16px; background:var(--md-surface-variant); border-radius:12px;">No tienes préstamos activos.</div>';
+        window.p2pPendingCount = 0; updateBellCount();
+        return;
+    }
+
+    list.innerHTML = window.p2pData.map(loan => {
+        const iAmBorrower = loan.borrowerEmail === myEmail;
+        const otherPerson = iAmBorrower ? loan.lenderAlias : loan.borrowerAlias;
+        const roleText = iAmBorrower ? 'Tú pediste a' : 'Te pidió prestado';
+
+        // LÓGICA DE COLORES
+        let color = '';
+        if (loan.status === 'closed') { color = '#0f9d58'; } // Verde: Completado
+        else if (loan.status === 'rejected') { color = '#d93025'; } // Rojo: Rechazado
+        else { color = iAmBorrower ? '#e8710a' : '#1a73e8'; } // Naranja: Yo debo | Azul: Me deben
+
+        let actionBtn = '';
+        
+        // BOTONES DE ACCIÓN (Y CONTEO DE GLOBOS ROJOS)
+        if(loan.status === 'requested' && !iAmBorrower) {
+            actionBtn = `
+                <button class="btn danger" style="font-size:11px; padding:6px; min-height:0;" onclick="actionP2P('${loan.id}', 'reject')">Rechazar</button>
+                <button class="btn primary" style="font-size:11px; padding:6px; min-height:0; margin-left:6px;" onclick="actionP2P('${loan.id}', 'send')">Prestar Dinero</button>
+            `;
+            pendingActions++;
+        } else if(loan.status === 'sent' && iAmBorrower) {
+            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58;" onclick="actionP2P('${loan.id}', 'receive')">Ya lo Recibí</button>`;
+            pendingActions++;
+        } else if(loan.status === 'received' && iAmBorrower) {
+            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:var(--md-on-surface);" onclick="actionP2P('${loan.id}', 'return')">Pagar Deuda</button>`;
+        } else if(loan.status === 'returned' && !iAmBorrower) {
+            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58;" onclick="actionP2P('${loan.id}', 'close')">Confirmar Pago</button>`;
+            pendingActions++;
+        }
+
+        let statusText = '';
+        if(loan.status === 'requested') statusText = '⏳ Solicitado';
+        else if(loan.status === 'sent') statusText = `📤 Dinero Enviado (Ref: ${loan.referenceCode})`;
+        else if(loan.status === 'received') statusText = '✅ Préstamo Activo';
+        else if(loan.status === 'returned') statusText = `💸 Devolución Enviada (Ref: ${loan.returnRef})`;
+        else if(loan.status === 'closed') statusText = '🔒 Saldado / Cerrado';
+        else if(loan.status === 'rejected') statusText = '❌ Solicitud Rechazada';
+
+        return `
+            <div style="padding:12px; border:1px solid ${color}50; border-left: 4px solid ${color}; border-radius:12px; margin-bottom:12px; background:var(--md-surface); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <div><div class="small">${roleText} <b>${otherPerson}</b></div><div style="font-weight:bold; font-size:14px;">${loan.desc || 'Sin motivo'}</div></div>
+                    <div style="font-weight:900; font-size:18px; color:${color};">${fmt(loan.amount)}</div>
+                </div>
+                <div class="small" style="background:var(--md-surface-variant); padding:8px; border-radius:8px; margin-bottom:8px;">
+                    <b style="color:${color}">Estado:</b> ${statusText}<br>
+                    ${loan.status === 'requested' ? `<b>Enviar a:</b> ${loan.borrowerAccount}` : ''}
+                    ${loan.status === 'received' && iAmBorrower ? `<b>Pagar a:</b> ${loan.lenderAccount}` : ''}
+                </div>
+                <div style="text-align:right;">${actionBtn}</div>
+            </div>
+        `;
+    }).join('');
+
+    // Actualizamos los globos de notificación globalmente
+    window.p2pPendingCount = pendingActions;
+    updateBellCount();
+};
+
+window.actionP2P = function(loanId, action) {
+    const loan = window.p2pData.find(x => x.id === loanId);
+    const p = prof();
+    const methods = p.settings.paymentMethods || [];
+
+    if(action === 'reject') {
+        if(confirm("¿Seguro que deseas rechazar esta solicitud de préstamo?")) {
+            db.collection('p2p_loans').doc(loanId).update({ status: 'rejected' });
+        }
+    }
+    else if(action === 'send') {
+        if(methods.length === 0) return showToast("Configura una cuenta bancaria para que te paguen de vuelta.", "⚠️");
+        let mOpts = methods.map(m => `<option value="🏦 ${m.bank} - ${m.account || m.phone}">${m.bank}</option>`).join('');
+        
+        showDialog({
+            title: 'Enviar Préstamo',
+            msg: `
+                <div class="small" style="margin-bottom:12px;">Transfiere ${fmt(loan.amount)} a: <b>${loan.borrowerAccount}</b></div>
+                <div style="text-align:left;">
+                    <label>Nro. Referencia</label><input id="p2p_ref" required style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; margin-bottom:8px;">
+                    <label>¿A qué cuenta tuya deben pagarte luego?</label><select id="p2p_myacc" style="width:100%; padding:8px;">${mOpts}</select>
+                </div>
+            `,
+            onConfirm: () => {
+                const ref = byId('p2p_ref').value;
+                const myAcc = byId('p2p_myacc').value;
+                if(!ref) return showToast("Ingresa la referencia", "❌");
+                
+                db.collection('p2p_loans').doc(loanId).update({ status: 'sent', referenceCode: ref, lenderAccount: myAcc });
+            }
+        });
+    }
+    else if(action === 'receive') {
+        db.collection('p2p_loans').doc(loanId).update({ status: 'received' });
+        
+        // Sumar préstamo al saldo e inyectarlo completado por defecto
+        p.incomes.push({ id: loanId, name: `Préstamo P2P de ${loan.lenderAlias}`, amount: loan.amount, freq: 'one-time', date: today() });
+        p.overrides = p.overrides || {};
+        p.overrides[`income_${loanId}_${today()}`] = { actualDate: today(), done: true };
+        
+        p.debts.push({ id: loanId, name: `Deuda P2P a ${loan.lenderAlias}`, type: 'noloan', balance: loan.amount, minPay: loan.amount });
+        
+        saveApp(); runPlan();
+        showToast("Préstamo activado y sumado a tu saldo.", "✅");
+    }
+    else if(action === 'return') {
+        showDialog({
+            title: 'Pagar Deuda',
+            msg: `
+                <div class="small" style="margin-bottom:12px;">Transfiere ${fmt(loan.amount)} a: <b>${loan.lenderAccount}</b></div>
+                <div style="text-align:left;"><label>Nro. Referencia de Pago</label><input id="p2p_return_ref" required style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc;"></div>
+            `,
+            onConfirm: () => {
+                const ref = byId('p2p_return_ref').value;
+                if(!ref) return showToast("Falta la referencia", "❌");
+                
+                db.collection('p2p_loans').doc(loanId).update({ status: 'returned', returnRef: ref });
+                
+                // Lo marcamos pagado e inyectado como completado
+                const expId = uid();
+                p.expenses.push({ id: expId, name: `Pago Deuda P2P a ${loan.lenderAlias}`, amount: loan.amount, freq: 'one-time', date: today(), flex: false });
+                p.overrides = p.overrides || {};
+                p.overrides[`expense_${expId}_${today()}`] = { actualDate: today(), done: true };
+                
+                p.debts = p.debts.filter(d => d.id !== loanId);
+                saveApp(); runPlan();
+            }
+        });
+    }
+    else if(action === 'close') {
+        db.collection('p2p_loans').doc(loanId).update({ status: 'closed' });
+        showToast("Préstamo cerrado correctamente.", "✅");
+    }
+};
+
 
 function renderDashboard() {
   const p = prof();
