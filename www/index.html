@@ -824,6 +824,11 @@ window.initFirebaseAuth = function() {
                             p.settings.paymentMethods = cloudData.paymentMethods;
                         }
                         
+                        // 🌟 NUEVO: Recuperamos la agenda de contactos automáticamente
+                        if (cloudData.contacts) {
+                            p.settings.contacts = cloudData.contacts;
+                        }
+                        
                         // Encendemos el radar y la interfaz
                         finishLoginSetup(user.email);
                         showToast(`¡Bienvenido de vuelta, ${cloudData.alias}!`, "👋");
@@ -950,11 +955,12 @@ window.syncUserProfileToCloud = function() {
     if (!email) return;
     
     const publicData = {
-        email: email, // La nueva llave
-        phone: p.settings.myPhone, // Dato secundario
+        email: email, 
+        phone: p.settings.myPhone, 
         alias: p.settings.myAlias,
         alias_lower: p.settings.myAlias.toLowerCase(),
-        paymentMethods: p.settings.paymentMethods || []
+        paymentMethods: p.settings.paymentMethods || [],
+        contacts: p.settings.contacts || [] // 🌟 NUEVO: Adjuntamos la agenda a la nube
     };
     
     db.collection('users').doc(email).set(publicData, {merge: true}).catch(e => console.error(e));
@@ -4633,6 +4639,7 @@ window.saveContactSilently = function(alias, email, phone = '') {
         p.settings.contacts.push({ alias, email, phone });
     }
     saveApp();
+    syncUserProfileToCloud(); // 🌟 NUEVO: Sube el contacto nuevo a la nube
 };
 
 window.saveContact = function(alias, email, phone = '') {
@@ -4647,11 +4654,11 @@ window.deleteContact = function(idx) {
         const contactToDrop = p.settings.contacts[idx];
         if (window.db && p.settings.myEmail && contactToDrop.email) {
             const friendshipId = [p.settings.myEmail, contactToDrop.email].sort().join('_');
-            // Marcamos como borrado bilateral
             db.collection('friendships').doc(friendshipId).set({ status: 'deleted_by_' + p.settings.myEmail });
         }
         p.settings.contacts.splice(idx, 1);
         saveApp(); renderAgendaContacts();
+        syncUserProfileToCloud(); // 🌟 NUEVO: Borra el contacto de tu nube
     }
 };
 
