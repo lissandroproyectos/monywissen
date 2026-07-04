@@ -26,10 +26,6 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      # NUEVO PASO CRUCIAL: Generar la carpeta dist
-      - name: Build Web Assets
-        run: npm run build
-
       - name: Add Android Platform and Assets
         run: |
           npx cap add android

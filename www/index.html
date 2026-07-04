@@ -568,8 +568,10 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
         <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0; width:100%;">
         <div style="width:100%;">
             <div class="heading" style="font-size:12px; color:var(--md-on-surface-variant); margin-bottom:6px;">Cambiar de Perfil / Cuenta</div>
-            <select id="profileSelect" onchange="switchProfile(this.value)" style="font-weight:bold; color:var(--md-on-surface); width:100%; padding:10px; min-height:0; font-size:14px;"></select>
+            <select id="profileSelect" onchange="switchProfile(this.value)" style="font-weight:bold; color:var(--md-on-surface); width:100%; padding:10px; min-height:0; font-size:14px; margin-bottom: 16px;"></select>
         </div>
+        
+        <button class="btn danger" style="width:100%; background:var(--md-surface-variant); color:var(--md-on-surface-variant); border:none; font-size:12px;" onclick="openSupport()">🎧 Contactar Soporte / Eliminar Cuenta</button>
     </div>
   </div>
 </div>
@@ -811,12 +813,43 @@ window.initFirebaseAuth = function() {
     });
 };
 
-window.signInWithGoogle = function() {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch(error => {
+
+window.signInWithGoogle = async function() {
+    try {
+        // Detectamos si estamos en la app nativa (APK) o en un navegador web (Windows)
+        const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+
+        if (isNative) {
+            // --- 📱 FLUJO NATIVO (ANDROID APK) ---
+            if (!window.Capacitor.Plugins.GoogleAuth) {
+                throw new Error("El plugin nativo de GoogleAuth no está disponible.");
+            }
+
+            // Inicializamos el plugin de Capacitor
+            window.Capacitor.Plugins.GoogleAuth.initialize({
+                clientId: '987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2.apps.googleusercontent.com',
+                scopes: ['profile', 'email'],
+                grantOfflineAccess: true,
+            });
+
+            // Abre la ventana de Google nativa de Android
+            const googleUser = await window.Capacitor.Plugins.GoogleAuth.signIn();
+            
+            // Pasamos la credencial a Firebase para que inicie sesión silenciosamente
+            const credential = firebase.auth.GoogleAuthProvider.credential(googleUser.authentication.idToken);
+            await auth.signInWithCredential(credential);
+
+        } else {
+            // --- 💻 FLUJO WEB (WINDOWS / CHROME) ---
+            // Usa el popup clásico de Firebase que funciona en navegadores
+            const provider = new firebase.auth.GoogleAuthProvider();
+            await auth.signInWithPopup(provider);
+        }
+
+    } catch (error) {
         console.error("Error Auth:", error);
-        showToast('No se pudo iniciar sesión con Google. ' + error.message, "❌");
-    });
+        showToast('Error de inicio de sesión. ' + (error.message || 'Operación cancelada'), "❌");
+    }
 };
 
 window.promptFirstSetup = function(email) {
@@ -825,9 +858,9 @@ window.promptFirstSetup = function(email) {
         msg: `
             <div style="text-align:left; gap:12px; display:flex; flex-direction:column; font-size:13px;">
                 <div style="color:var(--md-primary); font-weight:bold;">${email}</div>
-                <div class="small">Para que tus amigos puedan encontrarte y cobrarte por WhatsApp, completa estos datos:</div>
-                <div><label>Crea un Alias (Ej. Carlos):</label><input id="setupAlias" style="padding:10px; font-size:14px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid var(--md-outline-variant);" required></div>
-                <div><label>Teléfono (Ej. 04141234567):</label><input id="setupPhone" type="tel" style="padding:10px; font-size:14px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid var(--md-outline-variant);" required></div>
+                <div class="small">Para que tus amigos puedan encontrarte, completa estos datos:</div>
+                <div><label>Crea un Alias (Mín. 5 letras):</label><input id="setupAlias" style="padding:10px; font-size:14px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid var(--md-outline-variant);" required></div>
+                <div><label>Teléfono (Mín. 10 dígitos):</label><input id="setupPhone" type="tel" style="padding:10px; font-size:14px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid var(--md-outline-variant);" required></div>
             </div>
         `,
         hideCancel: true,
@@ -839,6 +872,20 @@ window.promptFirstSetup = function(email) {
                 showToast("Ambos campos son obligatorios.", "⚠️");
                 return promptFirstSetup(email); // Vuelve a pedirlo
             }
+
+            // --- VALIDACIONES ESTRICTAS ---
+            if (alias.length < 5) {
+                showToast("El Alias debe tener al menos 5 caracteres.", "⚠️");
+                return promptFirstSetup(email);
+            }
+
+            // Extraemos solo los números para contar correctamente (ignora el +, guiones o espacios)
+            const digitosTotales = phoneInput.replace(/\D/g, '').length;
+            if (digitosTotales < 10) {
+                showToast("El teléfono debe tener al menos 10 dígitos.", "⚠️");
+                return promptFirstSetup(email);
+            }
+            // ------------------------------
 
             const p = prof();
             p.settings.myAlias = alias;
@@ -1071,12 +1118,19 @@ function updateAvatarInitials() {
 window.renameAlias = function() {
     const p = prof(); p.settings = p.settings || {};
     showDialog({
-        title: 'Tu Alias', msg: 'Ingresa el apodo con el que te identificas en los grupos:',
+        title: 'Tu Alias', msg: 'Ingresa el apodo con el que te identificas en los grupos (Mínimo 5 letras):',
         input: true, inputValue: p.settings.myAlias || '', hideCancel: false,
         onConfirm: (val) => {
-            p.settings.myAlias = val.trim(); 
+            const alias = val.trim();
+            
+            if (alias.length < 5) {
+                showToast("El Alias debe tener al menos 5 caracteres.", "⚠️");
+                return window.renameAlias(); // Vuelve a abrir el cuadro
+            }
+
+            p.settings.myAlias = alias; 
             saveApp();
-            syncUserProfileToCloud(); // <-- AVISAMOS A LA NUBE DEL CAMBIO
+            syncUserProfileToCloud(); // Avisamos a la nube del cambio
             if (byId('lblCurrentAlias')) byId('lblCurrentAlias').textContent = p.settings.myAlias || 'Sin Alias';
         }
     });
@@ -1086,16 +1140,24 @@ window.editPhone = function() {
     const p = prof(); p.settings = p.settings || {};
     showDialog({
         title: 'Tu Teléfono (ID Único)', 
-        msg: 'Ingresa tu número. El sistema ajustará el código de país automáticamente:',
+        msg: 'Ingresa tu número (Mínimo 10 dígitos):',
         input: true, inputValue: p.settings.myPhone || '', inputType: 'tel', hideCancel: false,
         onConfirm: (val) => {
-            p.settings.myPhone = formatSmartPhone(val); // USAMOS LA MAGIA AQUÍ
+            const phoneInput = val.trim();
+            
+            const digitosTotales = phoneInput.replace(/\D/g, '').length;
+            if (digitosTotales < 10) {
+                showToast("El teléfono debe tener al menos 10 dígitos.", "⚠️");
+                return window.editPhone();
+            }
+
+            p.settings.myPhone = formatSmartPhone(phoneInput);
             saveApp();
+            syncUserProfileToCloud(); // Aproveché de añadir esto para que actualice Firestore
             if (byId('lblCurrentPhone')) byId('lblCurrentPhone').textContent = p.settings.myPhone || 'Sin Número';
         }
     });
 };
-
 // 2. Cerrar el modal (Blindado)
 window.closeProfileModal = function() {
     byId('profileModal').classList.remove('active');
@@ -4538,6 +4600,54 @@ window.formatSmartPhone = function(val) {
     if(clean && !clean.startsWith('+')) clean = '+' + clean;
     return clean;
 };
+
+// =========================================================================
+// SOPORTE Y ELIMINACIÓN DE CUENTA
+// =========================================================================
+
+window.openSupport = function() {
+    const p = prof();
+    const email = (p.settings && p.settings.myEmail) ? p.settings.myEmail : 'No registrado';
+    const alias = (p.settings && p.settings.myAlias) ? p.settings.myAlias : 'No registrado';
+    const phone = (p.settings && p.settings.myPhone) ? p.settings.myPhone : 'No registrado';
+
+    const html = `
+        <div style="text-align:left; font-size:13px;">
+            <div style="margin-bottom:12px;">¿En qué podemos ayudarte? Si deseas eliminar tu cuenta y borrar tus datos de la nube, indícalo a continuación.</div>
+            <textarea id="supportMsg" rows="4" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--md-outline-variant); font-family:inherit; font-size:13px; box-sizing:border-box;" placeholder="Escribe tu mensaje o motivo de eliminación..."></textarea>
+            <div class="small" style="margin-top:8px; color:var(--md-primary);">Tus datos (Alias, Correo y Teléfono) se adjuntarán al correo automáticamente para poder identificarte.</div>
+        </div>
+    `;
+
+    showDialog({
+        title: '🎧 Soporte Técnico',
+        msg: html,
+        hideCancel: false,
+        onConfirm: () => {
+            const msgArea = document.getElementById('supportMsg');
+            if (!msgArea) return;
+            
+            const msg = msgArea.value.trim();
+            if (!msg) {
+                showToast("El mensaje no puede estar vacío.", "⚠️");
+                return;
+            }
+
+            // *** IMPORTANTE: Cambia este correo por tu correo real de soporte ***
+            const supportEmail = "lissandro.reyes.proyectos@gmail.com"; 
+            
+            const subject = encodeURIComponent(`Soporte Monywissen: ${alias}`);
+            const bodyText = `${msg}\n\n--- Datos del Usuario ---\nAlias: ${alias}\nCorreo: ${email}\nTeléfono: ${phone}\n-------------------------`;
+            const body = encodeURIComponent(bodyText);
+
+            // Abre el cliente de correo del usuario (Gmail, Outlook, etc)
+            window.location.href = `mailto:${supportEmail}?subject=${subject}&body=${body}`;
+            
+            showToast("Abriendo tu aplicación de correo...", "✉️");
+        }
+    });
+};
+
 function renderDashboard() {
   const p = prof();
   const todayStr = today();

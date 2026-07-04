@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "987859318051-bsii559r2dg5givndhhl6e6no6hk3k2f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.monywissen.app",
+            "certificate_hash": "d18d6a05b9cf3f824dafb10033c335589ecc3a94"
+          }
+        },
+        {
           "client_id": "987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2.apps.googleusercontent.com",
           "client_type": 3
         }

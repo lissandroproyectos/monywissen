@@ -1,8 +1,7 @@
 {
   "appId": "com.monywissen.app",
   "appName": "Monywissen",
-  "webDir": "dist",
-  "bundledWebRuntime": false,
+  "webDir": "www",
   "plugins": {
     "GoogleAuth": {
       "scopes": ["profile", "email"],
