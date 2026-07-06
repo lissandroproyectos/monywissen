@@ -655,8 +655,14 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
     <div class="heading" style="margin-bottom:8px;">Escanear Contacto</div>
     <div class="small" style="margin-bottom:16px;">Apunta la cámara al código QR de Monywissen de tu amigo.</div>
     
-    <div id="qrReader" style="width:100%; border-radius:12px; overflow:hidden; background:#000;"></div>
+    <div id="qrReader" style="width:100%; border-radius:12px; overflow:hidden; background:#000; min-height:100px;"></div>
     
+    <div class="small" style="margin-top:16px; color:var(--md-on-surface-variant);">¿Bloqueo de permisos o cámara?</div>
+    <label class="btn" style="width:100%; margin-top:8px; border:1px dashed var(--md-outline); background:transparent;">
+        📂 Subir foto del QR de la galería
+        <input type="file" accept="image/*" style="display:none;" onchange="scanQRFromFile(this)">
+    </label>
+
     <button class="btn danger" style="margin-top:16px; width:100%;" onclick="stopScanQR()">Cancelar</button>
   </div>
 </div>
