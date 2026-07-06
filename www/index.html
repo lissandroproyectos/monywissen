@@ -58,6 +58,17 @@ button{cursor:pointer}
 .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
 input,select{width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--md-outline);background:var(--md-surface);color:var(--md-on-surface);min-height:var(--touch)}
 input:focus,select:focus{outline:none;border-color:var(--md-primary)}
+/* Escudo contra el renderizado feo de Android */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2379747e'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 24px;
+  padding-right: 40px !important;
+  background-color: var(--md-surface);
+}
 label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bottom:6px}
 .table{width:100%;border-collapse:separate;border-radius:12px}
 .table th,.table td{padding:14px 10px;border-bottom:1px solid var(--md-outline-variant);font-size:14px}
@@ -234,29 +245,20 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
       </div>
       
       <div id="calendarView">
-        <div class="small">Vista mensual de movimientos</div>
         <div id="calendarWrap" style="margin-top:16px;"></div>
       </div>
 
       <div id="listView" style="display:none;">
-        <div class="small">Buscador y filtro de movimientos proyectados</div>
-        <div class="grid grid2" style="margin:12px 0; gap:8px;">
-           <input type="text" id="filterText" placeholder="Buscar concepto o palabra..." onkeyup="renderListView()" style="padding:10px; font-size:13px; min-height:auto;">
-           <select id="filterType" onchange="renderListView()" style="padding:10px; font-size:13px; min-height:auto;">
-              <option value="all">Todos los movimientos</option>
-              <option value="income">Solo Ingresos</option>
-              <option value="expense">Solo Gastos</option>
-              <option value="debt">Solo Deudas (Inc. Cashea/Quoota)</option>
-              <option value="savings">Solo Ahorros/Divisas</option>
-              <option value="delayed">⏳ Solo Pospuestos</option>
-           </select>
+        <div class="small">Buscador de Movimientos (Pendientes en Adelante)</div>
+        <div class="grid" style="margin:12px 0; gap:8px;">
+           <input type="text" id="filterText" placeholder="🔍 Buscar concepto o palabra..." onkeyup="renderListView()" style="padding:10px; font-size:13px; min-height:auto;">
         </div>
+        <div id="listDebtChips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;"></div>
         <div id="listWrap" style="overflow-x:auto;"></div>
       </div>
 
     </div>
   </div>
-  
   <div class="section active" id="dashboard">
     <div id="dashboardAlerts"></div>
     
@@ -3313,20 +3315,53 @@ function toggleView(v) {
 
 function renderListView() {
     const txt = (byId('filterText').value || '').toLowerCase();
-    const type = byId('filterType').value || 'all';
+    const todayStr = today();
     
     let filtered = plan.filter(e => {
+        // Lógica de Pendientes Estricta: Ocultamos pasado y completados antes de hoy
+        if (e.date < todayStr) return false; 
+        
         if (txt && !e.label.toLowerCase().includes(txt)) return false;
-        if (type !== 'all') {
-            if (type === 'delayed' && !e.isDelayed) return false;
-            if (type === 'debt' && !['debt', 'cashea', 'quoota'].includes(e.type) && !e.type.startsWith('custom_')) return false;
-            if (type !== 'debt' && type !== 'delayed' && e.type !== type && e.type !== 'debt_cut') return false;
+        
+        // Sincronización con el Filtro Multi-Deuda de los Chips
+        if (window.activeDebtFilters && window.activeDebtFilters.length > 0) {
+            const typeToMatch = e.ref?.type || e.type;
+            if (!window.activeDebtFilters.includes(typeToMatch)) return false;
         }
         return true;
     });
     
+    // Generar Filtros (Chips) dinámicamente según lo que falte por pagar
+    const p = prof();
+    let pendingDebtTypes = new Set();
+    plan.forEach(e => {
+        if (e.date >= todayStr && (e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota' || e.type === 'debt_cut')) {
+            pendingDebtTypes.add(e.ref?.type || e.type);
+        }
+    });
+
+    let chipsHtml = '';
+    if (pendingDebtTypes.size > 0) {
+        pendingDebtTypes.forEach(t => {
+            let name = t === 'cashea' ? 'Cashea' : t === 'quoota' ? 'Quoota' : t === 'credit' ? 'Crédito' : t === 'card' ? 'Tarjetas' : t === 'fixed' ? 'Préstamos' : t === 'noloan' ? 'Sin Interés' : ((p.settings.customDebts || []).find(c => c.id === t)?.name || t);
+            const isActive = window.activeDebtFilters && window.activeDebtFilters.includes(t);
+            const bg = isActive ? 'var(--md-primary)' : 'var(--md-surface-variant)';
+            const col = isActive ? '#fff' : 'var(--md-on-surface-variant)';
+            const border = isActive ? 'var(--md-primary)' : 'var(--md-outline-variant)';
+
+            chipsHtml += `<button class="btn" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleCalDebtFilter('${t}')">${name}</button>`;
+        });
+
+        if (window.activeDebtFilters && window.activeDebtFilters.length > 0) {
+           chipsHtml += `<button class="btn danger" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; border:none;" onclick="clearCalDebtFilters()">✕ Limpiar</button>`;
+        }
+    }
+    const listChipsDiv = byId('listDebtChips');
+    if(listChipsDiv) listChipsDiv.innerHTML = chipsHtml;
+
+    // Render de Tabla
     if (filtered.length === 0) {
-        byId('listWrap').innerHTML = '<div class="small" style="text-align:center; padding:24px; background:var(--md-surface-variant); border-radius:12px;">No se encontraron movimientos con esos filtros.</div>';
+        byId('listWrap').innerHTML = '<div class="small" style="text-align:center; padding:24px; background:var(--md-surface-variant); border-radius:12px;">No hay movimientos pendientes bajo estos filtros.</div>';
         return;
     }
     
@@ -3350,12 +3385,12 @@ function renderListView() {
             <td style="text-align:right; font-weight:bold; color:var(--md-primary);">${fmt(e.balance)}</td>
          </tr>`;
 
-         // INYECCIÓN: LÍNEA DE SALDO ANTES DEL SIGUIENTE INGRESO
+         // INYECCIÓN: LÍNEA DE SALDO ANTES DEL SIGUIENTE INGRESO (Predictiva)
          const nxt = filtered[idx + 1];
          if (nxt && nxt.type === 'income' && e.type !== 'income') {
              html += `<tr style="background:var(--md-primary-container); pointer-events:none;">
                 <td colspan="4" style="text-align:right; padding:8px 10px; font-size:11px; font-weight:bold; color:var(--md-primary); border-bottom:2px dashed var(--md-primary);">
-                    ➔ Saldo libre antes de recibir "${nxt.label}": ${fmt(e.balance)}
+                    ➔ Saldo libre antes de cobrar "${nxt.label}": ${fmt(e.balance)}
                 </td>
              </tr>`;
          }
@@ -3365,13 +3400,45 @@ function renderListView() {
     byId('listWrap').innerHTML = html;
 }
 
+// Variable global para los filtros múltiples
+window.activeDebtFilters = window.activeDebtFilters || [];
 
 function renderCalendar() {
   const year = currentCalDate.getFullYear();
   const month = currentCalDate.getMonth();
   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const prefixMonth = `${year}-${(month + 1).toString().padStart(2, '0')}`;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
   
-  let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">';
+  // 1. CÁLCULO DE LAS TARJETAS (ARRIBA)
+  let mInc = 0, mExp = 0, mDebt = 0;
+  let monthDebtTypes = new Set(); // Recolectar tipos de deuda del mes
+  
+  const monthEvents = plan.filter(e => e.date.startsWith(prefixMonth));
+  monthEvents.forEach(e => {
+       if (e.amt > 0 && e.type === 'income') mInc += e.amt;
+       else if (e.type === 'expense') mExp += Math.abs(e.amt);
+       else if (e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota' || e.type === 'debt_cut') {
+           mDebt += Math.abs(e.amt);
+           monthDebtTypes.add(e.ref?.type || e.type);
+       }
+  });
+
+  // Calculamos el dinero disponible al cierre de este mes
+  let mDisp = prof().settings.openingBalance;
+  const untilMonthEvents = plan.filter(e => e.date <= `${prefixMonth}-31`);
+  if(untilMonthEvents.length > 0) mDisp = untilMonthEvents[untilMonthEvents.length - 1].balance;
+
+  // Renderizamos las 4 tarjetas SUPERIORES
+  let html = `<div class="grid" style="grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:16px;">
+      <div style="background:#e6f4ea; padding:8px; border-radius:12px; text-align:center; border:1px solid #0f9d5830;"><div style="font-size:9px; color:#0f9d58; font-weight:bold; text-transform:uppercase;">Ingresos</div><div style="font-weight:900; font-size:12px; color:#0f9d58; margin-top:2px;">${fmt(mInc)}</div></div>
+      <div style="background:#fce8e6; padding:8px; border-radius:12px; text-align:center; border:1px solid #d9302530;"><div style="font-size:9px; color:#d93025; font-weight:bold; text-transform:uppercase;">Gastos</div><div style="font-weight:900; font-size:12px; color:#d93025; margin-top:2px;">${fmt(mExp)}</div></div>
+      <div style="background:#fef7e0; padding:8px; border-radius:12px; text-align:center; border:1px solid #e8710a30;"><div style="font-size:9px; color:#e8710a; font-weight:bold; text-transform:uppercase;">Deudas</div><div style="font-weight:900; font-size:12px; color:#e8710a; margin-top:2px;">${fmt(mDebt)}</div></div>
+      <div style="background:var(--md-primary-container); padding:8px; border-radius:12px; text-align:center; border:1px solid var(--md-primary)"><div style="font-size:9px; color:var(--md-primary); font-weight:bold; text-transform:uppercase;">Disponible</div><div style="font-weight:900; font-size:12px; color:var(--md-primary); margin-top:2px;">${fmt(mDisp)}</div></div>
+  </div>`;
+
+  // Controles de mes
+  html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">';
   html += '<button class="btn icon" style="padding:8px;" onclick="changeMonth(-1)">❮</button>';
   html += '<div style="font-weight:bold; font-size:16px;">' + monthNames[month] + ' ' + year + '</div>';
   html += '<button class="btn icon" style="padding:8px;" onclick="changeMonth(1)">❯</button>';
@@ -3381,29 +3448,26 @@ function renderCalendar() {
   html += '<div class="weekday">Dom</div><div class="weekday">Lun</div><div class="weekday">Mar</div><div class="weekday">Mié</div><div class="weekday">Jue</div><div class="weekday">Vie</div><div class="weekday">Sáb</div>';
   
   const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const prefixMonth = `${year}-${(month + 1).toString().padStart(2, '0')}`;
-  
-  let mInc = 0, mExp = 0, mDebt = 0;
-  
   for (let i = 0; i < firstDay; i++) html += '<div></div>';
   
+  // 2. RENDERIZAR LA GRILLA CON FILTROS
   for (let d = 1; d <= daysInMonth; d++) {
     const dStr = d.toString().padStart(2, '0');
     const dateStr = `${prefixMonth}-${dStr}`;
     const isToday = dateStr === today();
     
     const events = plan.filter(e => {
-        if (e.date === dateStr) {
-           if (e.amt > 0 && e.type === 'income') mInc += e.amt;
-           else if (e.type === 'expense') mExp += Math.abs(e.amt);
-           else if (e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota' || e.type === 'debt_cut') mDebt += Math.abs(e.amt);
-           return true;
+        if (e.date !== dateStr) return false;
+        
+        // Magia del Filtro Múltiple
+        if (window.activeDebtFilters.length > 0) {
+            // Oculta TODO lo que no sea la deuda seleccionada (Limpieza total visual)
+            const typeToMatch = e.ref?.type || e.type;
+            if (!window.activeDebtFilters.includes(typeToMatch)) return false;
         }
-        return false;
+        return true;
     });
     
-    // TODA LA CELDA AHORA ES UN BOTÓN QUE ABRE EL MODAL DE ESE DÍA
     html += `<div class="day${isToday ? ' today' : ''}" style="cursor:pointer; position:relative;" onclick="openDayModal('${dateStr}')">`;
     html += `<div class="dayhead"><span>${d}</span><span style="color:var(--md-primary);font-weight:bold">${events.length ? events.length : ''}</span></div>`;
     
@@ -3417,28 +3481,56 @@ function renderCalendar() {
        else if (e.type === 'debt' || e.type === 'debt_cut') color = e.ref.effectiveColor || '#d93025'; 
        
        const prefix = e.isDelayed ? 'pp - ' : '';
-       
-       // Si tocan un movimiento en específico, bloqueamos que se abra el día completo y mostramos el detalle (stopPropagation)
        html += `<div class="evt" style="color:${color}; border-color:${color}30; background:${color}10; cursor:pointer;" onclick="event.stopPropagation(); showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">${prefix}${e.label}</div>`;
     });
 
-    // INDICADOR VISUAL SI HAY MÁS DE 3 EVENTOS
-    if (events.length > 3) {
-        html += `<div style="text-align:right; font-size:10px; font-weight:900; color:var(--md-on-surface-variant); margin-top:2px;">+${events.length - 3}</div>`;
-    }
-
+    if (events.length > 3) html += `<div style="text-align:right; font-size:10px; font-weight:900; color:var(--md-on-surface-variant); margin-top:2px;">+${events.length - 3}</div>`;
     html += '</div>';
   }
   html += '</div>';
 
-  html += `<div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:16px;">
-      <div style="background:#e6f4ea; padding:8px; border-radius:12px; text-align:center;"><div class="small" style="color:#0f9d58">Ingresos</div><div style="font-weight:bold; font-size:13px; color:#0f9d58">${fmt(mInc)}</div></div>
-      <div style="background:#fce8e6; padding:8px; border-radius:12px; text-align:center;"><div class="small" style="color:#d93025">Gastos</div><div style="font-weight:bold; font-size:13px; color:#d93025">${fmt(mExp)}</div></div>
-      <div style="background:#fef7e0; padding:8px; border-radius:12px; text-align:center;"><div class="small" style="color:#e8710a">Deudas</div><div style="font-weight:bold; font-size:13px; color:#e8710a">${fmt(mDebt)}</div></div>
-  </div>`;
+  // 3. RENDERIZAR ETIQUETAS INFERIORES DE FILTRADO (CHIPS)
+  if(monthDebtTypes.size > 0) {
+      const p = prof();
+      html += '<hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">';
+      html += '<div class="small" style="margin-bottom:8px; font-weight:bold;">Filtrar Calendario por Tipo de Deuda:</div>';
+      html += '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
+
+      monthDebtTypes.forEach(t => {
+          let name = t === 'cashea' ? 'Cashea' : t === 'quoota' ? 'Quoota' : t === 'credit' ? 'Crédito' : t === 'card' ? 'Tarjetas' : t === 'fixed' ? 'Préstamos' : t === 'noloan' ? 'Sin Interés' : ((p.settings.customDebts || []).find(c => c.id === t)?.name || t);
+          const isActive = window.activeDebtFilters.includes(t);
+          const bg = isActive ? 'var(--md-primary)' : 'var(--md-surface-variant)';
+          const col = isActive ? '#fff' : 'var(--md-on-surface-variant)';
+          const border = isActive ? 'var(--md-primary)' : 'var(--md-outline-variant)';
+
+          html += `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleCalDebtFilter('${t}')">${name}</button>`;
+      });
+
+      if(window.activeDebtFilters.length > 0) {
+           html += `<button class="btn danger" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; border:none;" onclick="clearCalDebtFilters()">✕ Limpiar Vista</button>`;
+      }
+      html += '</div>';
+  }
   
   byId('calendarWrap').innerHTML = html;
 }
+
+// Disparadores Lógicos de los Filtros
+window.toggleCalDebtFilter = function(t) {
+    if(window.activeDebtFilters.includes(t)) {
+        window.activeDebtFilters = window.activeDebtFilters.filter(x => x !== t);
+    } else {
+        window.activeDebtFilters.push(t);
+    }
+    renderCalendar();
+    renderListView(); 
+};
+
+window.clearCalDebtFilters = function() {
+    window.activeDebtFilters = [];
+    renderCalendar();
+    renderListView();
+};
 
 function openDayModal(dateStr) {
     const dayEvents = plan.filter(e => e.date === dateStr);
