@@ -490,10 +490,12 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
          
          <div style="background:var(--md-primary-container); padding:16px; border-radius:12px; margin-bottom:12px;">
              <div style="font-weight:bold; margin-bottom:4px; font-size:14px; color:var(--md-primary);">☁️ Sincronización Híbrida</div>
-             <div class="small" style="margin-bottom:12px;">Guarda saldos, grupos y contactos en Firebase. Genera un archivo con tus fotos.</div>
+             <div class="small" style="margin-bottom:12px;">Guarda saldos y contactos en Firebase. Genera un archivo con tus fotos.</div>
+             
              <div class="grid grid2" style="gap:8px;">
-                 <button class="btn primary" onclick="generateHybridBackup()">Sincronizar y Exportar</button>
-                 <button class="btn primary" onclick="restoreFromCloud()" style="background:var(--md-surface); color:var(--md-primary);">Recuperar Nube (Solo Texto)</button>
+                 <button class="btn primary" onclick="generateHybridBackup()">☁️ Sincronizar y Exportar</button>
+                 <button class="btn primary" onclick="exportData()" style="background:var(--md-surface); color:var(--md-primary); border:1px solid var(--md-primary);">💾 Exportar Solo Archivo</button>
+                 <button class="btn primary" onclick="restoreFromCloud()" style="background:var(--md-surface); color:var(--md-primary); grid-column:1/-1;">☁️ Recuperar Nube (Solo Texto)</button>
              </div>
          </div>
 
@@ -504,7 +506,6 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
              <input id="importFileSettings" type="file" accept=".mnwsn" style="display:none" onchange="importData(this)">
          </div>
       </div>
-	  
     </div>
   </div>
 </div>
@@ -870,28 +871,35 @@ window.promptFirstSetup = function(email) {
 
             if(!alias || !phoneInput) {
                 showToast("Ambos campos son obligatorios.", "⚠️");
-                return promptFirstSetup(email); // Vuelve a pedirlo
+                return promptFirstSetup(email); 
             }
 
-            // --- VALIDACIONES ESTRICTAS ---
             if (alias.length < 5) {
                 showToast("El Alias debe tener al menos 5 caracteres.", "⚠️");
                 return promptFirstSetup(email);
             }
 
-            // Extraemos solo los números para contar correctamente (ignora el +, guiones o espacios)
             const digitosTotales = phoneInput.replace(/\D/g, '').length;
             if (digitosTotales < 10) {
                 showToast("El teléfono debe tener al menos 10 dígitos.", "⚠️");
                 return promptFirstSetup(email);
             }
-            // ------------------------------
+
+            // 🌟 MAGIA: Renombrar el perfil activo al nuevo Alias
+            const oldProfileName = currentProfile;
+            if (app.profiles[oldProfileName] && oldProfileName !== alias && !app.profiles[alias]) {
+                app.profiles[alias] = app.profiles[oldProfileName];
+                delete app.profiles[oldProfileName];
+                app.currentProfile = alias;
+                currentProfile = alias;
+                initProfiles(); // Actualiza el selector visualmente
+            }
 
             const p = prof();
             p.settings.myAlias = alias;
             p.settings.myPhone = formatSmartPhone(phoneInput); 
             showToast("Perfil guardado. Ahora configura una cuenta bancaria.", "✅");
-            promptCreatePaymentMethod(null, true, email); // Pasamos flags especiales
+            promptCreatePaymentMethod(null, true, email); 
         }
     });
 };
@@ -1083,7 +1091,7 @@ function saveApp() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
   } catch(e) {
-    alert("Error crítico: El navegador no permitió guardar los datos en memoria. Verifica si estás en modo incógnito estricto.");
+    showDialog({title:'Error Crítico', msg:'El navegador no permitió guardar los datos en memoria. Verifica si estás en modo incógnito estricto o no hay espacio.', hideCancel:true});
   }
 }
 
@@ -1121,13 +1129,26 @@ window.renameAlias = function() {
             
             if (alias.length < 5) {
                 showToast("El Alias debe tener al menos 5 caracteres.", "⚠️");
-                return window.renameAlias(); // Vuelve a abrir el cuadro
+                return window.renameAlias(); 
             }
 
-            p.settings.myAlias = alias; 
+            // 🌟 MAGIA: Si cambia el alias, cambiamos el nombre del perfil también
+            const oldProfileName = currentProfile;
+            if (app.profiles[oldProfileName] && oldProfileName !== alias && !app.profiles[alias]) {
+                app.profiles[alias] = app.profiles[oldProfileName];
+                delete app.profiles[oldProfileName];
+                app.currentProfile = alias;
+                currentProfile = alias;
+                initProfiles(); 
+            }
+
+            const newP = prof(); // Refrescamos la variable porque el perfil cambió de lugar
+            newP.settings.myAlias = alias; 
             saveApp();
-            syncUserProfileToCloud(); // Avisamos a la nube del cambio
-            if (byId('lblCurrentAlias')) byId('lblCurrentAlias').textContent = p.settings.myAlias || 'Sin Alias';
+            syncUserProfileToCloud(); 
+            
+            if (byId('lblCurrentAlias')) byId('lblCurrentAlias').textContent = newP.settings.myAlias || 'Sin Alias';
+            if (byId('lblCurrentProfileName')) byId('lblCurrentProfileName').textContent = currentProfile;
         }
     });
 };
@@ -1602,22 +1623,21 @@ function removeDeliveryImg(idx) {
 // =========================================================================
 
 async function exportarPDF() {
-    if (typeof html2pdf === 'undefined') return alert("El motor de renderizado PDF no está listo.");
+    if (typeof html2pdf === 'undefined') return showToast("El motor de renderizado PDF no está listo. Espera un momento.", "⏳");
     
-    // 1. Identificar exactamente qué pantalla estamos viendo
     const activeSection = document.querySelector('.section.active');
     if (!activeSection) return;
     const viewId = activeSection.id;
     
     if (viewId !== 'dashboard' && viewId !== 'calendar') {
-        return alert("La exportación a PDF solo está habilitada para el Dashboard y el Cronograma.");
+        return showDialog({title:'Aviso', msg:'La exportación a PDF solo está habilitada para el Dashboard y el Cronograma.', hideCancel:true});
     }
 
     const elemento = byId(viewId); 
     const fileName = `Monywissen_${viewId.toUpperCase()}_${today()}.pdf`;
     
     const opciones = {
-        margin:       [10, 5, 10, 5], // Ajustamos márgenes para aprovechar el papel
+        margin:       [10, 5, 10, 5],
         filename:     fileName,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
@@ -1625,12 +1645,9 @@ async function exportarPDF() {
             useCORS: true,
             ignoreElements: (node) => { return (node.tagName === 'CANVAS' && (node.width === 0 || node.height === 0)); }
         },
-        // Si es calendario lo pone Acostado (landscape), si es Dashboard Normal (portrait)
         jsPDF:        { unit: 'mm', format: 'a4', orientation: viewId === 'calendar' ? 'landscape' : 'portrait' }
     };
 
-    // 2. TRUCO DE MAGIA PARA EL CRONOGRAMA:
-    // El motor falla si el calendario tiene scroll lateral. Se lo quitamos por un segundo.
     const wrapCal = byId('calendarWrap');
     const wrapList = byId('listWrap');
     const oldCalOverflow = wrapCal ? wrapCal.style.overflowX : '';
@@ -1639,7 +1656,6 @@ async function exportarPDF() {
     if(wrapCal) wrapCal.style.overflowX = 'visible';
     if(wrapList) wrapList.style.overflowX = 'visible';
 
-    // 3. Generar y Exportar
     if (window.Capacitor && window.Capacitor.isPluginAvailable('Filesystem')) {
         try {
             const pdfDataUri = await html2pdf().set(opciones).from(elemento).outputPdf('datauristring');
@@ -1648,18 +1664,16 @@ async function exportarPDF() {
             const writeResult = await Filesystem.writeFile({ path: fileName, data: base64RawData, directory: 'CACHE' });
             await Share.share({ title: `Reporte ${viewId}`, text: 'Reporte financiero generado desde Monywissen.', url: writeResult.uri });
         } catch (e) { 
-            alert('Error nativo PDF: ' + e.message); 
+            showToast('Error nativo PDF: ' + e.message, "❌"); 
         }
     } else {
         await html2pdf().set(opciones).from(elemento).save();
     }
 
-    // 4. Devolvemos el scroll lateral para que lo sigas usando en tu celular
     if(wrapCal) wrapCal.style.overflowX = oldCalOverflow;
     if(wrapList) wrapList.style.overflowX = oldListOverflow;
 }
 
-// Exporta toda la App o solo el Perfil actual
 async function exportData(onlyCurrentProfile = false) {
     let dataToExport = app;
     let fileName = "Monywissen_Backup_FULL_" + today() + ".mnwsn";
@@ -1684,7 +1698,7 @@ async function exportData(onlyCurrentProfile = false) {
             const { Filesystem, Share } = window.Capacitor.Plugins;
             const writeResult = await Filesystem.writeFile({ path: fileName, data: dataStr, directory: 'CACHE', encoding: 'utf8' });
             await Share.share({ title: shareTitle, text: shareText, url: writeResult.uri });
-        } catch (e) { alert('Error exportando: ' + e.message); }
+        } catch (e) { showToast('Error exportando: ' + e.message, "❌"); }
     } else {
         const blob = new Blob([dataStr], { type: "text/plain" });
         const url = window.URL.createObjectURL(blob);
@@ -1981,7 +1995,7 @@ function saveModal(){
 
   if (t === 'complete') {
      const newDate = byId('f_actual_date').value;
-     if (!newDate) return alert('Debes seleccionar una fecha.');
+     if (!newDate) return showToast('Debes seleccionar una fecha.', "⚠️");
      p.overrides = p.overrides || {};
      const key = i.type + '_' + i.refId + '_' + i.originalDate;
      p.overrides[key] = { actualDate: newDate, done: true };
@@ -1994,10 +2008,8 @@ function saveModal(){
      const person = byId('f_sav_person').value.trim();
      const amount = parseFloat(byId('f_sav_amount').value) || 0;
      const date = byId('f_sav_date').value;
-     
      const status = byId('f_sav_status').value;
      const delivered = (status === 'completed');
-     
      const receiptImg = window.tempSavingImgReceipt || '';
      const deliveryImgs = window.tempSavingImgDeliveries || [];
      
@@ -2019,7 +2031,7 @@ function saveModal(){
       const parts = window.tempParticipants || [];
       const splitType = byId('f_sh_split').value;
       
-      if(!name || parts.length === 0) return alert('Por favor, ingresa el nombre del evento y agrega al menos un integrante.');
+      if(!name || parts.length === 0) return showDialog({title:'Datos Incompletos', msg:'Por favor, ingresa el nombre del evento y agrega al menos un integrante.', hideCancel:true});
       
       let percentages = {};
       let phoneMap = {};
@@ -2037,29 +2049,21 @@ function saveModal(){
               const pName = inp.dataset.name; const pVal = parseFloat(inp.value) || 0;
               percentages[pName] = pVal; totalPct += pVal;
           });
-          if(Math.abs(totalPct - 100) > 0.1) return alert('Los porcentajes deben sumar exactamente 100%.');
+          if(Math.abs(totalPct - 100) > 0.1) return showDialog({title:'Error de Porcentajes', msg:'Los porcentajes deben sumar exactamente 100%.', hideCancel:true});
       }
 
-      const p = prof();
       p.sharedAccounts = p.sharedAccounts || [];
       let obj = i !== null ? p.sharedAccounts[i] : { id: uid(), expenses: [], transfersData: {} };
       
-      // 👑 INYECCIÓN DE PERMISOS / ROLES AQUÍ
       obj.ownerAlias = window.tempOwnerAlias;
       obj.admins = window.tempAdmins;
-      
       obj.name = name; obj.participants = parts; obj.splitType = splitType; 
       obj.percentages = percentages; obj.phoneMap = phoneMap;
       
-      const isNewGroup = (i === null); // Detectamos si el grupo es nuevo
-      
+      const isNewGroup = (i === null); 
       if(isNewGroup) p.sharedAccounts.push(obj); else p.sharedAccounts[i] = obj;
       
-      saveApp(); 
-      pushGroupToCloud(obj); 
-      
-      notifyGroupMembers(obj, isNewGroup ? 'new_group' : 'update_group'); 
-      
+      saveApp(); pushGroupToCloud(obj); notifyGroupMembers(obj, isNewGroup ? 'new_group' : 'update_group'); 
       closeModal(); renderSharedAccounts(); 
       if(byId('sharedDetailView') && byId('sharedDetailView').style.display === 'block' && i !== null) renderSharedAccountDetail(i);
       return;
@@ -2067,13 +2071,12 @@ function saveModal(){
   
   // --- INYECCIÓN CUENTAS COMPARTIDAS (GUARDAR GASTO) ---
   if (t === 'sharedExpense') {
-      const p = prof();
       const acc = p.sharedAccounts[i.accIdx];
       const desc = byId('f_she_desc').value.trim();
       const amount = parseFloat(byId('f_she_amount').value) || 0;
       const paidBy = byId('f_she_paidby').value;
       const date = byId('f_she_date').value || today();
-      if(!desc || amount <= 0) return alert('Registra datos válidos.');
+      if(!desc || amount <= 0) return showToast('Registra datos válidos (Monto y Descripción).', "⚠️");
       
       let obj = i.expIdx !== null ? acc.expenses[i.expIdx] : { id: uid() };
       obj.desc = desc; obj.amount = amount; obj.paidBy = paidBy; obj.date = date;
@@ -2089,26 +2092,19 @@ function saveModal(){
               pExp.amount = obj.amount; pExp.date = obj.date; pExp.desc = obj.desc; pExp.name = `Grupo: ${acc.name}`;
           }
       } else {
-          if (obj.linkedId) {
-              p.expenses = p.expenses.filter(x => x.id !== obj.linkedId);
-              delete obj.linkedId;
-          }
+          if (obj.linkedId) { p.expenses = p.expenses.filter(x => x.id !== obj.linkedId); delete obj.linkedId; }
       }
 
       const isNewExpense = (i.expIdx === null);
       if(isNewExpense) acc.expenses.push(obj); else acc.expenses[i.expIdx] = obj;
       
-      saveApp(); 
-      pushGroupToCloud(acc); 
-      
-      if(isNewExpense) notifyGroupMembers(acc, 'new_expense'); 
-      
+      saveApp(); pushGroupToCloud(acc); if(isNewExpense) notifyGroupMembers(acc, 'new_expense'); 
       closeModal(); renderSharedAccountDetail(i.accIdx); return;
   }
 
   // --- TRANSACCIONES PERSONALES ESTÁNDAR ---
   const nameEl=byId('f_name');
-  if(!nameEl||!nameEl.value.trim()) return alert('Falta el Nombre');
+  if(!nameEl||!nameEl.value.trim()) return showToast('Falta el Nombre o Concepto.', "⚠️");
   const name=nameEl.value.trim();
 
   if(t==='income'){
@@ -2122,7 +2118,6 @@ function saveModal(){
         
         if(i===null) {
             p.incomes.push(obj);
-            // ¡MAGIA! Lo marcamos como completado automáticamente
             p.overrides = p.overrides || {};
             p.overrides[`income_${id}_${date}`] = { actualDate: date, done: true };
         } else { p.incomes[i]=obj; }
@@ -2143,7 +2138,6 @@ function saveModal(){
         
         if(i===null) {
             p.expenses.push(obj);
-            // ¡MAGIA! Lo marcamos como completado automáticamente
             p.overrides = p.overrides || {};
             p.overrides[`expense_${id}_${date}`] = { actualDate: date, done: true };
         } else { p.expenses[i]=obj; }
@@ -2697,17 +2691,15 @@ function checkWeeklyBackup() {
 
 function moveSavings(action) {
    const amt = parseFloat(byId('saveAmount').value) || 0;
-   if(amt <= 0) return alert("Ingresa un monto mayor a 0");
+   if(amt <= 0) return showToast("Ingresa un monto mayor a 0", "⚠️");
    const p = prof();
    p.savings = p.savings || { current: 0 };
    
    if(action === 'deposit') {
-      // Registrar como un gasto único de inmediato para descontar del balance general
       p.expenses.push({ id: uid(), name: 'Depósito a Ahorros', amount: amt, freq: 'one-time', date: today(), type: 'regular', flex: false });
       p.savings.current += amt;
    } else {
-      if (amt > p.savings.current) return alert("No tienes suficientes ahorros");
-      // Registrar como un ingreso único de inmediato para sumarlo al balance general
+      if (amt > p.savings.current) return showToast("No tienes suficientes ahorros.", "❌");
       p.incomes.push({ id: uid(), name: 'Retiro de Ahorros', amount: amt, freq: 'one-time', date: today() });
       p.savings.current -= amt;
    }
@@ -2716,7 +2708,6 @@ function moveSavings(action) {
    saveApp();
    runPlan();
 }
-
 
 
 // =========================================================================
@@ -3802,15 +3793,12 @@ function importSharedAccount(input) {
                 throw new Error('Formato inválido');
             }
             
-            obj.id = uid(); // ID nuevo para evitar choques
-            
-            // --- 🛡️ MAGIA DE IDENTIFICACIÓN POR TELÉFONO ---
+            obj.id = uid(); 
             const p = prof();
             const myGlobalPhone = p.settings.myPhone || '';
             let autoAlias = '';
             
             if (myGlobalPhone && obj.phoneMap) {
-                // Buscamos si nuestro teléfono está en el directorio que armó el creador
                 for (const [aliasName, phoneNum] of Object.entries(obj.phoneMap)) {
                     if (phoneNum === myGlobalPhone) {
                         autoAlias = aliasName;
@@ -3819,14 +3807,12 @@ function importSharedAccount(input) {
                 }
             }
             
-            // Si el sistema lo reconoce, configura su Alias global para que todo el balance cuadre
             if (autoAlias) {
                 p.settings.myAlias = autoAlias;
-                alert(`✅ ¡Identidad Confirmada!\n\nEl sistema detectó tu número (${myGlobalPhone}) en el archivo. Se te ha asignado automáticamente el alias: "${autoAlias}" en tus ajustes.`);
+                showDialog({title:'¡Identidad Confirmada! ✅', msg:`El sistema detectó tu número (${myGlobalPhone}) en el archivo. Se te ha asignado automáticamente el alias: <b>"${autoAlias}"</b> en tus ajustes.`, hideCancel:true});
             } else {
-                alert(`✅ Grupo importado con éxito.\n\n⚠️ No detectamos tu número de teléfono en este grupo. Asegúrate de configurar tu "Alias" manualmente en tu Perfil para que tus balances se actualicen.`);
+                showDialog({title:'Grupo importado con éxito ✅', msg:`⚠️ No detectamos tu número de teléfono en este grupo. Asegúrate de configurar tu "Alias" manualmente en tu Perfil para que tus balances se actualicen.`, hideCancel:true});
             }
-            // ------------------------------------------------
 
             p.sharedAccounts = p.sharedAccounts || [];
             p.sharedAccounts.push(obj);
@@ -3834,12 +3820,13 @@ function importSharedAccount(input) {
             renderSharedAccounts();
             
         } catch (err) {
-            alert("❌ Error importando el grupo. Asegúrate de que sea un archivo de grupo (.mnwg)");
+            showDialog({title:'Error', msg:"❌ Error importando el grupo. Asegúrate de que sea un archivo de grupo válido (.mnwg).", hideCancel:true});
         }
         input.value = ""; 
     };
     reader.readAsText(file);
 }
+
 // =========================================================================
 // MOTOR DE NOTIFICACIONES LOCALES (OFFLINE)
 // =========================================================================
@@ -3853,15 +3840,15 @@ async function setupNotifications() {
         
         if (perm.display === 'granted') {
             prof().settings.notificationsEnabled = true;
-            prof().settings.notifTime = timeVal; // Guardamos la hora elegida
+            prof().settings.notifTime = timeVal;
             saveApp();
             scheduleNotifications();
-            alert(`✅ ¡Notificaciones activadas! Recibirás tus recordatorios a las ${timeVal}.`);
+            showDialog({title:'¡Notificaciones activadas! ✅', msg:`Recibirás tus recordatorios diarios a las ${timeVal}.`, hideCancel:true});
         } else {
-            alert("❌ Permiso denegado. No podremos enviarte recordatorios.");
+            showDialog({title:'Permiso Denegado ❌', msg:'No podremos enviarte recordatorios automáticos sin tu permiso.', hideCancel:true});
         }
     } else {
-        alert("Las notificaciones automáticas solo funcionan en la app instalada (APK).");
+        showDialog({title:'Aviso', msg:'Las notificaciones automáticas solo funcionan en la app instalada (APK).', hideCancel:true});
     }
 }
 
@@ -3941,51 +3928,6 @@ window.showMyQR = function() {
     });
     
     byId('myQrModal').classList.add('active');
-};
-
-// En tu escáner QR, actualizamos cómo lee esa cadena de datos
-window.startScanQR = function() {
-    if (typeof Html5Qrcode === 'undefined') return showToast('El escáner QR aún está cargando.', "⏳");
-    
-    byId('scanQrModal').classList.add('active');
-    html5QrCodeScanner = new Html5Qrcode("qrReader");
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-    
-    html5QrCodeScanner.start({ facingMode: "environment" }, config, (decodedText) => {
-        if (decodedText.startsWith('monywissen:contact:')) {
-            html5QrCodeScanner.stop().then(() => {
-                byId('scanQrModal').classList.remove('active');
-                html5QrCodeScanner = null;
-                
-                const parts = decodedText.split(':');
-                const scannedAlias = decodeURIComponent(parts[2]);
-                const scannedEmail = decodeURIComponent(parts[3]);
-                const scannedPhone = decodeURIComponent(parts[4] || '');
-                
-                // Guardar en la agenda usando el nuevo estándar
-                saveContact(scannedAlias, scannedEmail, scannedPhone);
-                
-                // Auto-agregar si estamos creando un grupo
-                if (modalType === 'sharedAccount' && window.tempParticipants) {
-                    if(!window.tempParticipants.includes(scannedAlias)) {
-                        window.tempParticipants.push(scannedAlias);
-                    }
-                    window.tempPhones = window.tempPhones || {};
-                    window.tempPhones[scannedAlias] = scannedPhone;
-                    renderParticipantList();
-                }
-                
-                showToast(`Contacto procesado: ${scannedAlias}`, "✅");
-            });
-        } else {
-            showToast('El código no es un contacto de Monywissen.', "❌");
-        }
-    }, (errorMessage) => {
-        // Errores de enfoque se ignoran
-    }).catch(err => {
-        alert("No se pudo acceder a la cámara. Revisa los permisos.");
-        stopScanQR();
-    });
 };
 
 window.closeMyQR = function() {
@@ -4111,7 +4053,7 @@ window.toggleGroupAdmin = function(name) {
 
 // ESCÁNER QR INTELIGENTE
 window.startScanQR = function() {
-    if (typeof Html5Qrcode === 'undefined') return alert('El escáner QR aún está cargando. Intenta de nuevo.');
+    if (typeof Html5Qrcode === 'undefined') return showToast('El escáner QR aún está cargando. Intenta de nuevo.', "⏳");
     
     byId('scanQrModal').classList.add('active');
     html5QrCodeScanner = new Html5Qrcode("qrReader");
@@ -4127,10 +4069,8 @@ window.startScanQR = function() {
                 const scannedAlias = decodeURIComponent(parts[2]);
                 const scannedPhone = decodeURIComponent(parts[3]);
                 
-                // 1. Guardar SIEMPRE en la Agenda Global del Perfil
                 saveContact(scannedAlias, scannedPhone);
                 
-                // 2. Si abriste la cámara desde la creación de un Grupo, añádelo a la lista de una vez
                 if (modalType === 'sharedAccount' && window.tempParticipants) {
                     if(!window.tempParticipants.includes(scannedAlias)) {
                         window.tempParticipants.push(scannedAlias);
@@ -4140,19 +4080,17 @@ window.startScanQR = function() {
                     renderParticipantList();
                 }
                 
-                alert(`✅ ¡Contacto procesado con éxito!\n\nAlias: ${scannedAlias}\nTel: ${scannedPhone}`);
+                showDialog({title:'Contacto procesado con éxito ✅', msg:`Alias: <b>${scannedAlias}</b><br>Teléfono: <b>${scannedPhone}</b>`, hideCancel:true});
             });
         } else {
-            alert('❌ El código escaneado no es un contacto válido de Monywissen.');
+            showToast('El código escaneado no es un contacto válido.', "❌");
         }
     }, (errorMessage) => {
-        // Errores de enfoque de cámara (se ignoran silenciosamente)
     }).catch(err => {
-        alert("No se pudo acceder a la cámara. Revisa los permisos.");
+        showDialog({title:'Error de Cámara', msg:'No se pudo acceder a la cámara. Revisa los permisos de Android.', hideCancel:true});
         stopScanQR();
     });
 };
-
 
 window.removeParticipant = function(name) {
     window.tempParticipants = window.tempParticipants.filter(n => n !== name);
@@ -5168,7 +5106,6 @@ window.addParticipantManual = function() {
     const p = prof();
     const contacts = p.settings.contacts || [];
     
-    // Dibujamos las burbujas de los contactos
     let bubblesHtml = contacts.map(c => `
         <div class="ag-bubble" data-name="${c.alias}" style="background:var(--md-surface-variant); padding:8px 12px; border-radius:16px; border:1px solid var(--md-outline-variant); font-size:12px; cursor:pointer; font-weight:bold; color:var(--md-primary);"
              onclick="byId('newPartName').value='${c.alias}'; confirmDialog();">
@@ -5176,11 +5113,8 @@ window.addParticipantManual = function() {
         </div>
     `).join('');
 
-    if (contacts.length === 0) {
-        bubblesHtml = '<div class="small" style="text-align:center; width:100%; padding:10px;">Agenda vacía. Escribe un nombre arriba.</div>';
-    }
+    if (contacts.length === 0) bubblesHtml = '<div class="small" style="text-align:center; width:100%; padding:10px;">Agenda vacía. Escribe un nombre arriba.</div>';
 
-    // Inyectamos nuestro propio buscador en lugar de usar el input estándar
     const html = `
         <div style="text-align:left; margin-bottom:12px;">
             <label style="font-weight:bold; color:var(--md-on-surface);">Buscar o Escribir Nombre:</label>
@@ -5195,25 +5129,21 @@ window.addParticipantManual = function() {
     showDialog({
         title: 'Agregar Integrante',
         msg: html,
-        input: false, // ¡Apagamos el input estándar del sistema para usar nuestro buscador!
+        input: false, 
         hideCancel: false,
         onConfirm: () => {
             const name = byId('newPartName').value.trim();
-            if(!name) return alert('Debes ingresar o seleccionar un nombre.');
-            if(window.tempParticipants.includes(name)) return alert('Esta persona ya está en el grupo.');
+            if(!name) return showToast('Debes ingresar o seleccionar un nombre.', "⚠️");
+            if(window.tempParticipants.includes(name)) return showToast('Esta persona ya está en el grupo.', "⚠️");
             
-            // Si el nombre coincide con la agenda, jalamos su teléfono automáticamente
             const savedContact = contacts.find(c => c.alias.toLowerCase() === name.toLowerCase());
-            if (savedContact) {
-                window.tempPhones[name] = savedContact.phone;
-            }
+            if (savedContact) window.tempPhones[name] = savedContact.phone;
             
             window.tempParticipants.push(name);
             renderParticipantList();
         }
     });
 
-    // Pone el cursor automáticamente en el buscador para que empieces a escribir de una vez
     setTimeout(() => { if(byId('newPartName')) byId('newPartName').focus(); }, 100);
 };
 
