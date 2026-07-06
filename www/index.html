@@ -3323,41 +3323,49 @@ function renderListView() {
         
         if (txt && !e.label.toLowerCase().includes(txt)) return false;
         
-        // Sincronización con el Filtro Multi-Deuda de los Chips
-        if (window.activeDebtFilters && window.activeDebtFilters.length > 0) {
-            const typeToMatch = e.ref?.type || e.type;
-            if (!window.activeDebtFilters.includes(typeToMatch)) return false;
+        // Sincronización con el Filtro Multi-Salida de los Chips
+        if (window.activeOutflowFilters && window.activeOutflowFilters.length > 0) {
+            if (e.amt > 0 && e.type === 'income') return false; 
+            const typeToMatch = e.type === 'expense' ? 'expense' : e.type === 'savings' ? 'savings' : (e.ref?.type || e.type);
+            if (!window.activeOutflowFilters.includes(typeToMatch)) return false;
         }
         return true;
     });
     
-    // Generar Filtros (Chips) dinámicamente según lo que falte por pagar
+    // Generar Filtros (Chips) dinámicamente según lo que falte por pagar a partir de hoy
     const p = prof();
-    let pendingDebtTypes = new Set();
+    let pendingOutflowTypes = new Set();
     plan.forEach(e => {
-        if (e.date >= todayStr && (e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota' || e.type === 'debt_cut')) {
-            pendingDebtTypes.add(e.ref?.type || e.type);
+        if (e.date >= todayStr && e.amt < 0) {
+            const typeToMatch = e.type === 'expense' ? 'expense' : e.type === 'savings' ? 'savings' : (e.ref?.type || e.type);
+            pendingOutflowTypes.add(typeToMatch);
         }
     });
 
     let chipsHtml = '';
-    if (pendingDebtTypes.size > 0) {
-        pendingDebtTypes.forEach(t => {
-            let name = t === 'cashea' ? 'Cashea' : t === 'quoota' ? 'Quoota' : t === 'credit' ? 'Crédito' : t === 'card' ? 'Tarjetas' : t === 'fixed' ? 'Préstamos' : t === 'noloan' ? 'Sin Interés' : ((p.settings.customDebts || []).find(c => c.id === t)?.name || t);
-            const isActive = window.activeDebtFilters && window.activeDebtFilters.includes(t);
+    if (pendingOutflowTypes.size > 0) {
+        pendingOutflowTypes.forEach(t => {
+            let name = t === 'expense' ? 'Gastos' : t === 'savings' ? 'Ahorros/Divisas' : t === 'cashea' ? 'Cashea' : t === 'quoota' ? 'Quoota' : t === 'credit' ? 'Crédito' : t === 'card' ? 'Tarjetas' : t === 'fixed' ? 'Préstamos' : t === 'noloan' ? 'Sin Interés' : t === 'debt_cut' ? 'Cortes' : ((p.settings.customDebts || []).find(c => c.id === t)?.name || t);
+            const isActive = window.activeOutflowFilters && window.activeOutflowFilters.includes(t);
             const bg = isActive ? 'var(--md-primary)' : 'var(--md-surface-variant)';
             const col = isActive ? '#fff' : 'var(--md-on-surface-variant)';
             const border = isActive ? 'var(--md-primary)' : 'var(--md-outline-variant)';
 
-            chipsHtml += `<button class="btn" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleCalDebtFilter('${t}')">${name}</button>`;
+            chipsHtml += `<button class="btn" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleCalOutflowFilter('${t}')">${name}</button>`;
         });
 
-        if (window.activeDebtFilters && window.activeDebtFilters.length > 0) {
-           chipsHtml += `<button class="btn danger" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; border:none;" onclick="clearCalDebtFilters()">✕ Limpiar</button>`;
+        if (window.activeOutflowFilters && window.activeOutflowFilters.length > 0) {
+           chipsHtml += `<button class="btn danger" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; border:none;" onclick="clearCalOutflowFilters()">✕ Limpiar</button>`;
         }
     }
-    const listChipsDiv = byId('listDebtChips');
-    if(listChipsDiv) listChipsDiv.innerHTML = chipsHtml;
+    
+    // Asegurarse de que exista el contenedor de Chips en la vista de lista (Si no, lo creamos)
+    let listChipsDiv = byId('listDebtChips');
+    if(!listChipsDiv) {
+        byId('listView').insertAdjacentHTML('afterbegin', '<div id="listDebtChips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;"></div>');
+        listChipsDiv = byId('listDebtChips');
+    }
+    listChipsDiv.innerHTML = chipsHtml;
 
     // Render de Tabla
     if (filtered.length === 0) {
@@ -3400,8 +3408,28 @@ function renderListView() {
     byId('listWrap').innerHTML = html;
 }
 
+// Funciones toggle globales
+window.toggleCalOutflowFilter = function(t) {
+    if(window.activeOutflowFilters.includes(t)) {
+        window.activeOutflowFilters = window.activeOutflowFilters.filter(x => x !== t);
+    } else {
+        window.activeOutflowFilters.push(t);
+    }
+    renderCalendar();
+    renderListView(); 
+};
+
+window.clearCalOutflowFilters = function() {
+    window.activeOutflowFilters = [];
+    renderCalendar();
+    renderListView();
+};
+
 // Variable global para los filtros múltiples
 window.activeDebtFilters = window.activeDebtFilters || [];
+
+// Variable global para los filtros múltiples de Salida de Dinero
+window.activeOutflowFilters = window.activeOutflowFilters || [];
 
 function renderCalendar() {
   const year = currentCalDate.getFullYear();
@@ -3412,15 +3440,20 @@ function renderCalendar() {
   
   // 1. CÁLCULO DE LAS TARJETAS (ARRIBA)
   let mInc = 0, mExp = 0, mDebt = 0;
-  let monthDebtTypes = new Set(); // Recolectar tipos de deuda del mes
+  let monthOutflowTypes = new Set(); // Recolecta todos los tipos de salida del mes
   
   const monthEvents = plan.filter(e => e.date.startsWith(prefixMonth));
   monthEvents.forEach(e => {
-       if (e.amt > 0 && e.type === 'income') mInc += e.amt;
-       else if (e.type === 'expense') mExp += Math.abs(e.amt);
-       else if (e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota' || e.type === 'debt_cut') {
+       if (e.amt > 0 && e.type === 'income') {
+           mInc += e.amt;
+       } else if (e.type === 'expense') { 
+           mExp += Math.abs(e.amt); 
+           monthOutflowTypes.add('expense'); 
+       } else if (e.type === 'savings') { 
+           monthOutflowTypes.add('savings'); 
+       } else if (e.type === 'debt' || e.type === 'cashea' || e.type === 'quoota' || e.type === 'debt_cut') {
            mDebt += Math.abs(e.amt);
-           monthDebtTypes.add(e.ref?.type || e.type);
+           monthOutflowTypes.add(e.ref?.type || e.type);
        }
   });
 
@@ -3460,10 +3493,12 @@ function renderCalendar() {
         if (e.date !== dateStr) return false;
         
         // Magia del Filtro Múltiple
-        if (window.activeDebtFilters.length > 0) {
-            // Oculta TODO lo que no sea la deuda seleccionada (Limpieza total visual)
-            const typeToMatch = e.ref?.type || e.type;
-            if (!window.activeDebtFilters.includes(typeToMatch)) return false;
+        if (window.activeOutflowFilters.length > 0) {
+            // Ocultamos ingresos si estamos filtrando salidas
+            if (e.amt > 0 && e.type === 'income') return false; 
+            
+            const typeToMatch = e.type === 'expense' ? 'expense' : e.type === 'savings' ? 'savings' : (e.ref?.type || e.type);
+            if (!window.activeOutflowFilters.includes(typeToMatch)) return false;
         }
         return true;
     });
@@ -3490,24 +3525,24 @@ function renderCalendar() {
   html += '</div>';
 
   // 3. RENDERIZAR ETIQUETAS INFERIORES DE FILTRADO (CHIPS)
-  if(monthDebtTypes.size > 0) {
+  if(monthOutflowTypes.size > 0) {
       const p = prof();
       html += '<hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">';
-      html += '<div class="small" style="margin-bottom:8px; font-weight:bold;">Filtrar Calendario por Tipo de Deuda:</div>';
+      html += '<div class="small" style="margin-bottom:8px; font-weight:bold;">Filtrar Calendario por Salidas de Dinero:</div>';
       html += '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
 
-      monthDebtTypes.forEach(t => {
-          let name = t === 'cashea' ? 'Cashea' : t === 'quoota' ? 'Quoota' : t === 'credit' ? 'Crédito' : t === 'card' ? 'Tarjetas' : t === 'fixed' ? 'Préstamos' : t === 'noloan' ? 'Sin Interés' : ((p.settings.customDebts || []).find(c => c.id === t)?.name || t);
-          const isActive = window.activeDebtFilters.includes(t);
+      monthOutflowTypes.forEach(t => {
+          let name = t === 'expense' ? 'Gastos' : t === 'savings' ? 'Ahorros/Divisas' : t === 'cashea' ? 'Cashea' : t === 'quoota' ? 'Quoota' : t === 'credit' ? 'Crédito' : t === 'card' ? 'Tarjetas' : t === 'fixed' ? 'Préstamos' : t === 'noloan' ? 'Sin Interés' : t === 'debt_cut' ? 'Cortes' : ((p.settings.customDebts || []).find(c => c.id === t)?.name || t);
+          const isActive = window.activeOutflowFilters.includes(t);
           const bg = isActive ? 'var(--md-primary)' : 'var(--md-surface-variant)';
           const col = isActive ? '#fff' : 'var(--md-on-surface-variant)';
           const border = isActive ? 'var(--md-primary)' : 'var(--md-outline-variant)';
 
-          html += `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleCalDebtFilter('${t}')">${name}</button>`;
+          html += `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleCalOutflowFilter('${t}')">${name}</button>`;
       });
 
-      if(window.activeDebtFilters.length > 0) {
-           html += `<button class="btn danger" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; border:none;" onclick="clearCalDebtFilters()">✕ Limpiar Vista</button>`;
+      if(window.activeOutflowFilters.length > 0) {
+           html += `<button class="btn danger" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; border:none;" onclick="clearCalOutflowFilters()">✕ Limpiar Filtros</button>`;
       }
       html += '</div>';
   }
