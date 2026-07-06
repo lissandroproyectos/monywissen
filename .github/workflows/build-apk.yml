@@ -57,6 +57,15 @@ jobs:
       - name: Sync Capacitor Project
         run: npx cap sync android
 
+      - name: Inyectar Permisos Nativos de Android
+        run: |
+          echo "Añadiendo permisos de Cámara y Notificaciones al AndroidManifest.xml..."
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.CAMERA" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/manifest>/i \    <uses-feature android:name="android.hardware.camera" android:required="false" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
+
       - name: Build APK (Release)
         run: |
           cd android

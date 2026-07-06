@@ -658,34 +658,6 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   </div>
 </div>
 
-<div class="modal" id="agendaModal" style="z-index: 4500;">
-  <div class="card" style="max-width: 400px; padding: 0;">
-    <div style="padding: 16px; background:var(--md-primary-container); border-radius:24px 24px 0 0; display:flex; justify-content:space-between; align-items:center;">
-        <div class="heading" style="margin:0; color:var(--md-primary);">📖 Agenda</div>
-        <button class="btn icon" onclick="closeAgendaModal()" style="font-size:22px; font-weight:bold; padding:0; border:none; background:transparent; color:var(--md-primary);">✕</button>
-    </div>
-    
-    <div style="display:flex; border-bottom:1px solid var(--md-outline-variant);">
-        <div id="tabAgenda" class="tab active" onclick="switchAgendaTab('agenda')">Contactos</div>
-        <div id="tabRequests" class="tab" onclick="switchAgendaTab('requests')">Solicitudes <span id="reqCount"></span></div>
-    </div>
-
-    <div style="padding: 16px;">
-        <div id="viewAgenda">
-             <div style="display:flex; gap:6px; margin-bottom:16px; flex-wrap:nowrap; overflow-x:auto;">
-				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0;" onclick="promptAddContactManual()">➕ Seleccionar</button>
-				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0; background:var(--md-on-surface); border-color:var(--md-on-surface);" onclick="startScanQR()">📷 QR</button>
-				<button class="btn primary" style="flex:1; padding:8px 4px; font-size:12px; min-height:0; background:#0f9d58; border-color:#0f9d58;" onclick="searchContactInCloud()">🔍 Nube</button>
-			</div>
-            <div id="agendaContactsList" style="max-height:300px; overflow-y:auto;"></div>
-        </div>
-        <div id="viewRequests" style="display:none;">
-            <div id="requestsList" style="max-height:300px; overflow-y:auto;"></div>
-        </div>
-    </div>
-  </div>
-</div>
-
 <div class="modal" id="authModal" style="z-index: 9999; background: var(--md-surface);">
   <div class="card" style="max-width: 350px; text-align:center; padding: 32px 24px; margin: auto; border:none; box-shadow:none; background:transparent;">
     <div style="font-size:48px; margin-bottom:16px;">🔐</div>
@@ -737,18 +709,6 @@ const firebaseConfig = {
   appId: "1:987859318051:web:5d0cd29dc71ef2e73b0896"
 };
 
-
-// Función maestra para inyectar datos de la app a la nube
-window.pushGroupToCloud = function(accObj) {
-    if (!window.db) return;
-    const cleanObj = JSON.parse(JSON.stringify(accObj));
-    // Firestore necesita un array plano de números de teléfono para poder buscar rápido
-    cleanObj.participantPhones = Object.values(cleanObj.phoneMap || {});
-    
-    db.collection('shared_groups').doc(cleanObj.id).set(cleanObj)
-      .then(() => console.log('☁️ Sincronización exitosa'))
-      .catch(e => console.error('Error sincronizando:', e));
-};
 
 // =========================================================================
 // DISPARADOR DE NOTIFICACIONES PARA MONYSHARED
@@ -1057,14 +1017,6 @@ function byId(i){return document.getElementById(i)}
 function uid(){return Math.random().toString(36).slice(2,10)}
 function fmt(n){return '$'+(Math.round((n||0)*100)/100).toLocaleString('en-US')}
 function today(){return new Date().toISOString().slice(0,10)}
-
-
-window.switchAgendaTab = function(tab) {
-    byId('viewAgenda').style.display = tab === 'agenda' ? 'block' : 'none';
-    byId('viewRequests').style.display = tab === 'requests' ? 'block' : 'none';
-    byId('tabAgenda').classList.toggle('active', tab === 'agenda');
-    byId('tabRequests').classList.toggle('active', tab === 'requests');
-};
 
 
 // Formateador estricto para evitar problemas de idioma en navegadores (DD/MM/YYYY)
@@ -2044,7 +1996,7 @@ function saveModal(){
      const date = byId('f_sav_date').value;
      
      const status = byId('f_sav_status').value;
-     const delivered = (status === 'completed'); // Compatible con cálculos viejos
+     const delivered = (status === 'completed');
      
      const receiptImg = window.tempSavingImgReceipt || '';
      const deliveryImgs = window.tempSavingImgDeliveries || [];
@@ -2061,7 +2013,6 @@ function saveModal(){
      return;
   }
   
-  // --- INYECCIÓN CUENTAS COMPARTIDAS (GUARDAR) ---
   // --- INYECCIÓN CUENTAS COMPARTIDAS (GUARDAR GRUPO) ---
   if (t === 'sharedAccount') {
       const name = byId('f_sh_name').value.trim();
@@ -2092,6 +2043,11 @@ function saveModal(){
       const p = prof();
       p.sharedAccounts = p.sharedAccounts || [];
       let obj = i !== null ? p.sharedAccounts[i] : { id: uid(), expenses: [], transfersData: {} };
+      
+      // 👑 INYECCIÓN DE PERMISOS / ROLES AQUÍ
+      obj.ownerAlias = window.tempOwnerAlias;
+      obj.admins = window.tempAdmins;
+      
       obj.name = name; obj.participants = parts; obj.splitType = splitType; 
       obj.percentages = percentages; obj.phoneMap = phoneMap;
       
@@ -2102,7 +2058,6 @@ function saveModal(){
       saveApp(); 
       pushGroupToCloud(obj); 
       
-      // ¡LA MAGIA AQUÍ! 🔔
       notifyGroupMembers(obj, isNewGroup ? 'new_group' : 'update_group'); 
       
       closeModal(); renderSharedAccounts(); 
@@ -2146,13 +2101,12 @@ function saveModal(){
       saveApp(); 
       pushGroupToCloud(acc); 
       
-      // ¡LA MAGIA AQUÍ! 🔔 (Solo notificamos cuando se crea un gasto nuevo, para no hacer spam si solo corrigen el monto)
       if(isNewExpense) notifyGroupMembers(acc, 'new_expense'); 
       
       closeModal(); renderSharedAccountDetail(i.accIdx); return;
   }
-  // ------------------------------------------
 
+  // --- TRANSACCIONES PERSONALES ESTÁNDAR ---
   const nameEl=byId('f_name');
   if(!nameEl||!nameEl.value.trim()) return alert('Falta el Nombre');
   const name=nameEl.value.trim();
@@ -2168,12 +2122,10 @@ function saveModal(){
         
         if(i===null) {
             p.incomes.push(obj);
-            // ¡MAGIA! Lo marcamos como completado automáticamente al crearlo
+            // ¡MAGIA! Lo marcamos como completado automáticamente
             p.overrides = p.overrides || {};
             p.overrides[`income_${id}_${date}`] = { actualDate: date, done: true };
-        } else {
-            p.incomes[i]=obj;
-        }
+        } else { p.incomes[i]=obj; }
     } else {
         const freq=byId('f_freq').value;
         obj={id:i!==null?p.incomes[i].id:uid(),name,amount,freq,day:freq!=='one-time'?(+byId('f_day').value||1):undefined,date:freq==='one-time'?(byId('f_date')?byId('f_date').value:today()):undefined};
@@ -2191,12 +2143,10 @@ function saveModal(){
         
         if(i===null) {
             p.expenses.push(obj);
-            // ¡MAGIA! Lo marcamos como completado automáticamente al crearlo
+            // ¡MAGIA! Lo marcamos como completado automáticamente
             p.overrides = p.overrides || {};
             p.overrides[`expense_${id}_${date}`] = { actualDate: date, done: true };
-        } else {
-            p.expenses[i]=obj;
-        }
+        } else { p.expenses[i]=obj; }
     } else {
         const freq=byId('f_freq').value;
         obj={id:i!==null?p.expenses[i].id:uid(),name,amount,freq,day:freq!=='one-time'?(+byId('f_day').value||1):undefined,date:freq==='one-time'?(byId('f_date')?byId('f_date').value:today()):undefined,end:byId('f_end')?(byId('f_end').value||''):'',flex:byId('f_flex')?byId('f_flex').value==='true':false};
@@ -2219,16 +2169,12 @@ function saveModal(){
        obj.hasInterest = customDef.hasInterest;
        obj.apr = customDef.hasInterest ? ((parseFloat(byId('f_apr').value)||0)/100) : 0;
        obj.mora = customDef.hasInterest ? ((parseFloat(byId('f_mora').value)||0)/100) : 0;
-       
        let baseBalance = parseFloat(byId('f_balance').value) || 0;
-       
        if (customDef.usePlan) {
            obj.plan = byId('f_plan').value;
            let months = obj.plan === 'full' ? 1 : (parseInt(obj.plan.split('-')[1]) || 1);
            let interest = customDef.hasInterest ? (baseBalance * obj.apr * (months/12)) : 0;
            obj.balance = baseBalance + interest;
-           
-           // Traduce la cuota mensual a la frecuencia elegida
            let quota = obj.balance / months;
            if (customDef.freq === 'weekly') quota /= 4.33;
            else if (customDef.freq === 'biweekly') quota /= 2;
@@ -2722,21 +2668,30 @@ function discardMovement() {
 }
 
 function checkWeeklyBackup() {
-    const todayD = new Date();
+    const lastBackup = localStorage.getItem('monywissen_last_backup');
     const todayStr = today();
-    
-    if (todayD.getDay() === 1) {
-        const lastBackup = localStorage.getItem('monywissen_last_backup');
-        if (lastBackup !== todayStr) {
-            setTimeout(() => {
-                showDialog({
-                    title: 'Lunes de Respaldo 💾',
-                    msg: '¡Feliz inicio de semana! ¿Deseas descargar una copia de seguridad de tu base de datos en este momento?',
-                    onConfirm: () => { exportData(); localStorage.setItem('monywissen_last_backup', todayStr); },
-                    onCancel: () => { localStorage.setItem('monywissen_last_backup', todayStr); }
-                });
-            }, 800);
-        }
+    let shouldPrompt = false;
+
+    if (!lastBackup) {
+        shouldPrompt = true; // Si nunca ha hecho un respaldo
+    } else {
+        const lastDate = new Date(lastBackup + 'T12:00:00');
+        const now = new Date();
+        const diffTime = Math.abs(now - lastDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays >= 7) shouldPrompt = true;
+    }
+
+    if (shouldPrompt) {
+        setTimeout(() => {
+            showDialog({
+                title: 'Respaldo de Seguridad 💾',
+                msg: 'Hace una semana (o más) que no descargas un respaldo. ¿Deseas generar uno ahora para proteger tus datos?',
+                onConfirm: () => { exportData(); localStorage.setItem('monywissen_last_backup', todayStr); },
+                onCancel: () => { localStorage.setItem('monywissen_last_backup', todayStr); } // Se pospone hasta la próxima semana
+            });
+        }, 1500); // Un pequeño retraso para que no interrumpa al apenas abrir la app
     }
 }
 
@@ -3705,8 +3660,17 @@ function renderSharedAccounts() {
 
 function renderSharedAccountDetail(idx) {
     const acc = prof().sharedAccounts[idx];
-	window.currentOpenGroupId = acc.id;
+    window.currentOpenGroupId = acc.id;
     const s = calculateSharedSettlement(acc);
+    
+    // --- VERIFICACIÓN DE PERMISOS ---
+    const myAlias = prof().settings.myAlias;
+    const isOwner = acc.ownerAlias === myAlias || (!acc.ownerAlias);
+    const isAdmin = isOwner || (acc.admins && acc.admins.includes(myAlias));
+    
+    const settingsBtn = isAdmin ? `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:13px; border:1px solid var(--md-outline);" onclick="openCreateSharedAccount(${idx})">⚙️ Ajustes</button>` : '';
+    const editGroupBtn = isAdmin ? `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:12px; background:var(--md-surface);" onclick="openCreateSharedAccount(${idx})">✏️ Editar Grupo</button>` : '';
+    // --------------------------------
     
     byId('sharedListView').style.display = 'none';
     byId('sharedDetailView').style.display = 'block';
@@ -3737,12 +3701,10 @@ function renderSharedAccountDetail(idx) {
             const tData = (acc.transfersData || {})[key] || {};
             const isDone = tData.status === 'completed';
             
-            // Lógica para el botón directo de WhatsApp
             const p = prof();
             const debtorPhone = (acc.phoneMap && acc.phoneMap[t.from]) ? acc.phoneMap[t.from].replace('+', '') : '';
             const iAmCreditor = (t.to === (p.settings.myAlias || ''));
             
-            // Si yo soy el que cobra, no está pagado y tengo su teléfono, le habilito el botón
             const waButton = (iAmCreditor && !isDone && debtorPhone) ? 
                 `<button class="btn icon" style="padding:6px; min-height:0; width:auto; border:none; background:#e6f4ea; color:#0f9d58; font-size:15px; border-radius:8px;" onclick="openCobroWhatsApp('${debtorPhone}', '${t.from}', ${t.amount}, '${acc.name.replace(/'/g, "\\'")}')" title="Cobrar por WhatsApp">💬</button>` 
                 : '';
@@ -3767,14 +3729,13 @@ function renderSharedAccountDetail(idx) {
         transHtml += '</div>';
     }
 
-    // MODIFICADO: Agregamos el botón de Ajustes arriba, y un botón de Editar directamente en la caja de integrantes
     byId('sharedDetailView').innerHTML = `
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
                 <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:13px;" onclick="renderSharedAccounts()">❮ Volver</button>
                 <div class="heading" style="margin:0; font-size:18px; font-weight:900;">Grupo: ${acc.name}</div>
                 <div style="display:flex; gap:6px;">
-                    <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:13px; border:1px solid var(--md-outline);" onclick="openCreateSharedAccount(${idx})">⚙️ Ajustes</button>
+                    ${settingsBtn}
                     <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:13px; border:1px solid var(--md-outline);" onclick="exportSharedAccount(${idx})">💾 Exportar</button>
                     <button class="btn primary" style="background:#0f9d58; border-color:#0f9d58; padding:6px 12px; min-height:0; width:auto; font-size:13px;" onclick="shareSharedAccountWhatsApp(${idx})">📤 WhatsApp</button>
                 </div>
@@ -3785,7 +3746,7 @@ function renderSharedAccountDetail(idx) {
                     <b>Estrategia de Cierre:</b> ${acc.splitType==='equal'?'⚖️ Equitativo (Partes iguales)':'📊 Porcentaje personalizado'}<br>
                     <b>Integrantes:</b> ${acc.participants.join(', ')}
                 </div>
-                <button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:12px; background:var(--md-surface);" onclick="openCreateSharedAccount(${idx})">✏️ Editar Grupo</button>
+                ${editGroupBtn}
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -3956,55 +3917,6 @@ async function scheduleNotifications() {
 // --- MODALES DE GESTIÓN Y CONFIGURACIÓN ---
 
 
-function openCreateSharedAccount(idx = null) {
-    modalType = 'sharedAccount'; modalIndex = idx;
-    const p = prof(); p.sharedAccounts = p.sharedAccounts || [];
-    let x = idx !== null ? p.sharedAccounts[idx] : { name: '', participants: [], splitType: 'equal', percentages: {}, phoneMap: {} };
-    
-    // 1. Inicializamos el estado temporal con los datos del grupo (o en blanco si es nuevo)
-    window.tempParticipants = x.participants ? [...x.participants] : [];
-    window.tempPhones = x.phoneMap ? {...x.phoneMap} : {};
-    window.tempPcts = x.percentages ? {...x.percentages} : {};
-    
-    // 2. Si es un grupo nuevo y tienes tu Alias configurado, te auto-agregamos por comodidad
-    if (idx === null && p.settings.myAlias && !window.tempParticipants.includes(p.settings.myAlias)) {
-        window.tempParticipants.push(p.settings.myAlias);
-        if (p.settings.myPhone) window.tempPhones[p.settings.myAlias] = p.settings.myPhone;
-    }
-
-    byId('modalTitle').textContent = idx !== null ? 'Editar Cuenta Compartida' : 'Nueva Cuenta Compartida';
-    byId('btnDelete').style.display = idx !== null ? 'inline-flex' : 'none';
-    byId('btnSave').style.display = 'inline-flex';
-
-    let html = `
-        <div class="grid grid2">
-            <div style="grid-column: 1 / -1;"><label>Nombre de la Cuenta / Evento</label><input id="f_sh_name" value="${x.name}" placeholder="Ej. Viaje Morrocoy" required></div>
-            
-            <div style="grid-column: 1 / -1;"><label>Método de Reparto</label><select id="f_sh_split" onchange="renderParticipantList()">
-                <option value="equal" ${x.splitType==='equal'?'selected':''}>⚖️ Equitativo (Partes Iguales)</option>
-                <option value="percentage" ${x.splitType==='percentage'?'selected':''}>📊 Por Porcentaje Personalizado</option>
-            </select></div>
-            
-            <div style="grid-column: 1 / -1; background:var(--md-surface-variant); padding:12px; border-radius:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                    <div class="small" style="font-weight:bold; color:var(--md-primary);">Directorio de Integrantes:</div>
-                    <div style="display:flex; gap:6px;">
-                        <button class="btn" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; background:var(--md-surface);" onclick="addParticipantManual()">➕ Agregar</button>
-                        <button class="btn primary" style="padding:4px 8px; min-height:0; width:auto; font-size:11px;" onclick="startScanQR()">📷 QR</button>
-                        <button class="btn primary" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; background:#0f9d58; border-color:#0f9d58;" onclick="searchContactInCloud()">🔍 Nube</button>
-                    </div>
-                </div>
-                <div id="sharedParticipantsContainer"></div>
-            </div>
-        </div>
-    `;
-    byId('modalBody').innerHTML = html;
-    byId('modal').classList.add('active');
-    
-    // Dibujamos la lista interactiva
-    renderParticipantList();
-}
-
 // =========================================================================
 // MOTOR DE CÓDIGOS QR (COMPARTIR Y ESCANEAR CONTACTOS)
 // =========================================================================
@@ -4096,43 +4008,105 @@ window.stopScanQR = function() {
     }
 };
 
+window.openCreateSharedAccount = function(idx = null) {
+    modalType = 'sharedAccount'; modalIndex = idx;
+    const p = prof(); p.sharedAccounts = p.sharedAccounts || [];
+    let x = idx !== null ? p.sharedAccounts[idx] : { name: '', participants: [], splitType: 'equal', percentages: {}, phoneMap: {} };
+    
+    // --- SISTEMA DE ROLES ---
+    window.tempOwnerAlias = x.ownerAlias || p.settings.myAlias; // Si es grupo viejo, asume que eres el dueño
+    window.tempAdmins = x.admins ? [...x.admins] : [window.tempOwnerAlias]; // Por defecto el Owner es Admin
+    const isOwner = window.tempOwnerAlias === p.settings.myAlias;
+
+    window.tempParticipants = x.participants ? [...x.participants] : [];
+    window.tempPhones = x.phoneMap ? {...x.phoneMap} : {};
+    window.tempPcts = x.percentages ? {...x.percentages} : {};
+    
+    // Auto-agregar al creador
+    if (idx === null && p.settings.myAlias && !window.tempParticipants.includes(p.settings.myAlias)) {
+        window.tempParticipants.push(p.settings.myAlias);
+        if (p.settings.myPhone) window.tempPhones[p.settings.myAlias] = p.settings.myPhone;
+    }
+
+    byId('modalTitle').textContent = idx !== null ? 'Editar Cuenta Compartida' : 'Nueva Cuenta Compartida';
+    
+    // REGLA: Solo el CREADOR (Owner) puede eliminar el grupo
+    byId('btnDelete').style.display = (idx !== null && isOwner) ? 'inline-flex' : 'none';
+    byId('btnSave').style.display = 'inline-flex';
+
+    let html = `
+        <div class="grid grid2">
+            <div style="grid-column: 1 / -1;"><label>Nombre de la Cuenta / Evento</label><input id="f_sh_name" value="${x.name}" placeholder="Ej. Viaje Morrocoy" required></div>
+            <div style="grid-column: 1 / -1;"><label>Método de Reparto</label><select id="f_sh_split" onchange="renderParticipantList()">
+                <option value="equal" ${x.splitType==='equal'?'selected':''}>⚖️ Equitativo (Partes Iguales)</option>
+                <option value="percentage" ${x.splitType==='percentage'?'selected':''}>📊 Por Porcentaje Personalizado</option>
+            </select></div>
+            
+            <div style="grid-column: 1 / -1; background:var(--md-surface-variant); padding:12px; border-radius:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <div class="small" style="font-weight:bold; color:var(--md-primary);">Directorio de Integrantes:</div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; background:var(--md-surface);" onclick="addParticipantManual()">➕ Agregar</button>
+                        <button class="btn primary" style="padding:4px 8px; min-height:0; width:auto; font-size:11px;" onclick="startScanQR()">📷 QR</button>
+                        <button class="btn primary" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; background:#0f9d58; border-color:#0f9d58;" onclick="searchContactInCloud()">🔍 Nube</button>
+                    </div>
+                </div>
+                <div id="sharedParticipantsContainer"></div>
+            </div>
+        </div>
+    `;
+    byId('modalBody').innerHTML = html;
+    byId('modal').classList.add('active');
+    renderParticipantList();
+};
+
 window.renderParticipantList = function() {
     const container = byId('sharedParticipantsContainer');
     if(!container) return;
     
     if(window.tempParticipants.length === 0) {
-        container.innerHTML = '<div class="small" style="text-align:center; padding:12px; border:1px dashed var(--md-outline); border-radius:8px;">No hay integrantes. Agrega uno usando los botones de arriba.</div>';
-        return;
+        container.innerHTML = '<div class="small" style="text-align:center; padding:12px; border:1px dashed var(--md-outline); border-radius:8px;">No hay integrantes.</div>'; return;
     }
     
     const splitType = byId('f_sh_split') ? byId('f_sh_split').value : 'equal';
     const defaultPct = (100 / window.tempParticipants.length).toFixed(0);
     const p = prof();
+    const iAmOwner = window.tempOwnerAlias === p.settings.myAlias;
 
     container.innerHTML = window.tempParticipants.map(name => {
         let pctVal = window.tempPcts[name] !== undefined ? window.tempPcts[name] : defaultPct;
         let phoneVal = window.tempPhones[name] !== undefined ? window.tempPhones[name] : '';
         
         const isMe = name === p.settings.myAlias;
-        const meBadge = isMe ? '<span style="color:#0f9d58; font-size:10px; margin-left:4px;">(Tú)</span>' : '';
+        const isOwner = name === window.tempOwnerAlias;
+        const isAdmin = window.tempAdmins.includes(name);
         
+        let roleBadge = isOwner ? '👑 Creador' : (isAdmin ? '⭐ Admin' : '');
+        let badgeHtml = roleBadge ? `<span style="font-size:9px; background:var(--md-primary-container); color:var(--md-primary); padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:bold;">${roleBadge}</span>` : '';
+        
+        // REGLA: Si soy el Owner, puedo darle/quitarle poderes de Admin a los demás
+        let adminBtn = '';
+        if (iAmOwner && !isOwner) {
+            adminBtn = `<button class="btn" style="padding:2px 6px; font-size:10px; min-height:0; margin-left:6px; background:transparent;" onclick="toggleGroupAdmin('${name}')">${isAdmin ? 'Quitar Admin' : 'Hacer Admin'}</button>`;
+        }
+
         return `<div style="background:var(--md-surface); padding:8px; border-radius:8px; border:1px solid var(--md-outline-variant); margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                <label style="font-weight:bold; margin:0; color:var(--md-on-surface);">👤 ${name} ${meBadge}</label>
-                <button class="btn icon danger" style="padding:2px 8px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="removeParticipant('${name}')" title="Quitar Integrante">✕</button>
+                <label style="font-weight:bold; margin:0; color:var(--md-on-surface); display:flex; align-items:center;">👤 ${name} ${isMe ? '<span style="color:#0f9d58; font-size:10px; margin-left:4px;">(Tú)</span>' : ''} ${badgeHtml} ${adminBtn}</label>
+                <button class="btn icon danger" style="padding:2px 8px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="removeParticipant('${name}')">✕</button>
             </div>
             <div style="display:flex; gap:8px;">
-               <div style="flex:1;">
-                  <span class="small">Teléfono ID</span>
-                  <input type="tel" class="sh-phone-input" data-name="${name}" value="${phoneVal}" placeholder="+584141234567" style="padding:6px; font-size:12px; border-radius:8px; border:1px solid var(--md-outline-variant); min-height:0; width:100%;" onchange="window.tempPhones['${name}'] = this.value">
-               </div>
-               <div style="width:70px; display:${splitType==='percentage'?'block':'none'}">
-                  <span class="small">%</span>
-                  <input type="number" class="sh-pct-input" data-name="${name}" value="${pctVal}" min="0" max="100" style="padding:6px; font-size:12px; border-radius:8px; border:1px solid var(--md-outline-variant); min-height:0;" onchange="window.tempPcts['${name}'] = this.value">
-               </div>
+               <div style="flex:1;"><span class="small">Teléfono ID</span><input type="tel" class="sh-phone-input" data-name="${name}" value="${phoneVal}" style="padding:6px; font-size:12px; border-radius:8px; border:1px solid var(--md-outline-variant); min-height:0; width:100%;" onchange="window.tempPhones['${name}'] = this.value"></div>
+               <div style="width:70px; display:${splitType==='percentage'?'block':'none'}"><span class="small">%</span><input type="number" class="sh-pct-input" data-name="${name}" value="${pctVal}" min="0" max="100" style="padding:6px; font-size:12px; border-radius:8px; border:1px solid var(--md-outline-variant); min-height:0;" onchange="window.tempPcts['${name}'] = this.value"></div>
             </div>
         </div>`;
     }).join('');
+};
+
+window.toggleGroupAdmin = function(name) {
+    if(window.tempAdmins.includes(name)) window.tempAdmins = window.tempAdmins.filter(n => n !== name);
+    else window.tempAdmins.push(name);
+    renderParticipantList();
 };
 
 // ESCÁNER QR INTELIGENTE
@@ -4192,8 +4166,14 @@ function openAddSharedExpense(accIdx, expIdx = null) {
     const acc = prof().sharedAccounts[accIdx];
     let e = expIdx !== null ? acc.expenses[expIdx] : { desc: '', amount: '', paidBy: acc.participants[0], date: today() };
     
+    // --- VERIFICACIÓN DE PERMISOS ---
+    const myAlias = prof().settings.myAlias;
+    const isAdmin = (acc.ownerAlias === myAlias) || (!acc.ownerAlias) || (acc.admins && acc.admins.includes(myAlias));
+
     byId('modalTitle').textContent = expIdx !== null ? 'Editar Gasto Compartido' : 'Registrar Gasto al Grupo';
-    byId('btnDelete').style.display = expIdx !== null ? 'inline-flex' : 'none';
+    
+    // REGLA: Solo los Admins pueden eliminar el gasto
+    byId('btnDelete').style.display = (expIdx !== null && isAdmin) ? 'inline-flex' : 'none';
     byId('btnSave').style.display = 'inline-flex';
 
     let options = (acc.participants || []).map(p => `<option value="${p}" ${e.paidBy===p?'selected':''}>👤 ${p}</option>`).join('');
@@ -4301,16 +4281,6 @@ window.toggleProfileCards = function(type) {
     byId('tabPaymentCard').style.boxShadow = !isContact ? activeShadow : inactiveShadow;
     
     byId('lblCardHint').textContent = isContact ? 'Muestra tu QR (🔲) a un amigo para que te agregue a sus grupos.' : 'Estos datos se enviarán cuando decidas cobrar por WhatsApp (💬).';
-};
-
-// --- CONTROLES DEL NUEVO MODAL DE AGENDA ---
-window.openAgendaModal = function() {
-    renderAgendaContacts();
-    byId('agendaModal').classList.add('active');
-};
-
-window.closeAgendaModal = function() {
-    byId('agendaModal').classList.remove('active');
 };
 
 window.renderAgendaContacts = function() {
@@ -4466,13 +4436,6 @@ window.sendFriendRequest = function(targetEmail, targetAlias, targetPhone, btnEl
 window.incomingRequests = [];
 window.outgoingRequests = []; 
 window.generalNotifications = []; 
-
-window.updateBellCount = function() {
-    const count = window.incomingRequests.length + window.generalNotifications.length;
-    if(byId('requestBell')) byId('requestBell').style.display = count > 0 ? 'block' : 'none';
-    if(byId('requestBadge')) byId('requestBadge').textContent = count;
-    if(byId('reqCount')) byId('reqCount').textContent = count > 0 ? `(${count})` : '';
-};
 
 // 2. ESCUCHAR CAMBIOS Y NOTIFICACIONES (A TU CORREO)
 window.blockedByMe = [];
