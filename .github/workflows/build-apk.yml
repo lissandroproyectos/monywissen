@@ -41,9 +41,9 @@ jobs:
           echo '<?xml version="1.0" encoding="utf-8"?>
           <resources>
               <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-                  <item name="colorPrimary">@android:color/white</item>
-                  <item name="colorPrimaryDark">@android:color/white</item>
-                  <item name="colorAccent">@android:color/black</item>
+                  <item name="colorPrimary">#1f6ddc</item>
+                  <item name="colorPrimaryDark">#1f6ddc</item>
+                  <item name="colorAccent">#1f6ddc</item>
                   <item name="android:background">@android:color/white</item>
                   <item name="android:datePickerDialogTheme">@style/CleanDialogTheme</item>
                   <item name="android:alertDialogTheme">@style/CleanDialogTheme</item>
@@ -65,6 +65,10 @@ jobs:
               
               <style name="CleanDialogTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
                   <item name="android:windowBackground">@android:color/white</item>
+                  <item name="android:colorBackground">@android:color/white</item>
+                  <item name="colorPrimary">#1f6ddc</item>
+                  <item name="colorPrimaryDark">#1f6ddc</item>
+                  <item name="colorAccent">#1f6ddc</item>
               </style>
           </resources>' > android/app/src/main/res/values/styles.xml
 
