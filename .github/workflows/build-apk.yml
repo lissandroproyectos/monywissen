@@ -44,31 +44,25 @@ jobs:
                   <item name="colorPrimary">#1f6ddc</item>
                   <item name="colorPrimaryDark">#1f6ddc</item>
                   <item name="colorAccent">#1f6ddc</item>
-                  <item name="android:background">@android:color/white</item>
-                  <item name="android:datePickerDialogTheme">@style/CleanDialogTheme</item>
-                  <item name="android:alertDialogTheme">@style/CleanDialogTheme</item>
               </style>
+              
               <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="windowActionBar">false</item>
                   <item name="windowNoTitle">true</item>
-                  <item name="android:windowFullscreen">true</item>
+                  
                   <item name="android:windowBackground">@android:color/white</item>
-                  <item name="android:colorBackground">@android:color/white</item>
-                  <item name="android:datePickerDialogTheme">@style/CleanDialogTheme</item>
-                  <item name="android:alertDialogTheme">@style/CleanDialogTheme</item>
+                  <item name="android:background">@null</item>
+                  
                   <item name="android:windowTranslucentStatus">true</item>
                   <item name="android:windowTranslucentNavigation">true</item>
                   <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-              </style>
-              <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
-                  <item name="android:background">@drawable/splash</item>
+                  
+                  <item name="android:datePickerDialogTheme">@android:style/Theme.DeviceDefault.Light.Dialog</item>
+                  <item name="android:alertDialogTheme">@android:style/Theme.DeviceDefault.Light.Dialog.Alert</item>
               </style>
               
-              <style name="CleanDialogTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
-                  <item name="android:windowBackground">@android:color/white</item>
-                  <item name="android:colorBackground">@android:color/white</item>
-                  <item name="colorPrimary">#1f6ddc</item>
-                  <item name="colorPrimaryDark">#1f6ddc</item>
-                  <item name="colorAccent">#1f6ddc</item>
+              <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
+                  <item name="android:background">@drawable/splash</item>
               </style>
           </resources>' > android/app/src/main/res/values/styles.xml
 
