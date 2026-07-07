@@ -26,7 +26,7 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install
-          npm install @capacitor/status-bar
+          npm install @capacitor/status-bar@6.0.2
 
       - name: Add Android Platform and Assets
         run: |
