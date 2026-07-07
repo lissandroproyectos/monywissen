@@ -557,10 +557,10 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <button class="navbtn" data-view="transactions">Únicas</button>
 </div>
 
-<div class="modal" id="selectModal" style="z-index: 9500; align-items:flex-end;" onclick="closeSelectModal()">
-  <div class="card" style="margin:0; width:100%; max-width:600px; border-radius:24px 24px 0 0; padding:0; animation: slideUp 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);" onclick="event.stopPropagation()">
+<div class="modal" id="selectModal" style="z-index: 9500; align-items:flex-end; justify-content:center;" onclick="closeSelectModal()">
+  <div class="card" style="margin:0 auto; width:100%; max-width:600px; border-radius:24px 24px 0 0; padding:0; animation: slideUp 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);" onclick="event.stopPropagation()">
      <div style="padding:16px; text-align:center; border-bottom:1px solid var(--md-outline-variant); position:relative;">
-         <div style="width:40px; height:4px; background:var(--md-outline-variant); border-radius:2px; margin:0 auto 12px;"></div>
+	 <div style="width:40px; height:4px; background:var(--md-outline-variant); border-radius:2px; margin:0 auto 12px;"></div>
          <div class="heading" id="selectModalTitle" style="margin:0; font-size:16px; color:var(--md-primary);">Seleccionar Opción</div>
      </div>
      <div id="selectModalOptions" style="max-height:60vh; overflow-y:auto; padding-bottom:16px;"></div>
@@ -2556,6 +2556,7 @@ window.switchSubTab = function(module, state, el) {
 };
 
 // --- FIX DEL MOTOR DE TABLAS (Ahora respeta el ID original aunque se filtren datos) ---
+// --- FIX DEL MOTOR DE TABLAS (Ahora respeta el ID original aunque se filtren datos) ---
 function table(rows, cols, type) {
   if (!rows || !rows.length) return '<div class="small" style="padding:16px; text-align:center;">Sin datos registrados en esta sección.</div>';
   
@@ -2563,7 +2564,7 @@ function table(rows, cols, type) {
   for (const c of cols) {
     html += '<th>' + c + '</th>';
   }
-  html += '<th style="text-align:right;">Edit</th></tr></thead><tbody>';
+  html += '</tr></thead><tbody>';
   
   rows.forEach((row, idx) => {
     // MAGIA DE SEGURIDAD: Usamos el ID original inyectado para que al editar abra el correcto
@@ -2575,14 +2576,12 @@ function table(rows, cols, type) {
       html += '<td>' + (row[c] ?? '-') + '</td>';
     }
     
-    html += '<td style="text-align:right; color:var(--md-primary); font-size:16px;">✎</td>';
     html += '</tr>';
   });
   
   html += '</tbody></table>';
   return html;
 }
-
 
 function renderIncome() {
   const p = prof();
@@ -3238,14 +3237,13 @@ function renderTransactions() {
      return;
   }
   
-  let html = '<table class="table"><thead><tr><th>Fecha</th><th>Nombre</th><th>Monto</th><th></th></tr></thead><tbody>';
+  let html = '<table class="table"><thead><tr><th>Fecha</th><th>Nombre</th><th>Monto</th></tr></thead><tbody>';
   unicos.forEach(row => {
     const color = row.tipoReal === 'income' ? '#0f9d58' : '#d93025';
     html += `<tr onclick="openEdit('${row.tipoReal}', ${row.originalIdx})" style="cursor:pointer;">
       <td style="white-space:nowrap">${formatDate(row.date)}</td>
       <td>${row.name}</td>
       <td style="color:${color}; font-weight:bold;">${row.tipoReal === 'income' ? '+' : '-'}${fmt(row.amount)}</td>
-      <td style="text-align:right; color:var(--md-primary);">✎</td>
     </tr>`;
   });
   html += '</tbody></table>';
@@ -4171,13 +4169,12 @@ function renderSharedAccountDetail(idx) {
     if(!acc.expenses || acc.expenses.length === 0) {
         expHtml = '<div class="small" style="text-align:center; padding:12px;">Sin compras ni gastos registrados.</div>';
     } else {
-        expHtml = '<table class="table" style="font-size:13px;"><thead><tr><th>¿Qué se compró?</th><th>Pagó</th><th>Monto</th><th></th></tr></thead><tbody>';
+        expHtml = '<table class="table" style="font-size:13px;"><thead><tr><th>¿Qué se compró?</th><th>Pagó</th><th>Monto</th></tr></thead><tbody>';
         acc.expenses.forEach((e, eIdx) => {
-            expHtml += `<tr>
+            expHtml += `<tr onclick="openAddSharedExpense(${idx}, ${eIdx})" style="cursor:pointer;">
                 <td><b>${e.desc}</b></td>
                 <td><span class="small">👤 ${e.paidBy}</span></td>
                 <td style="font-weight:bold; color:var(--md-primary);">${fmt(e.amount)}</td>
-                <td style="text-align:right;"><button class="btn" style="padding:4px 8px; min-height:0; width:auto; font-size:11px; border:none; background:transparent; color:var(--md-primary);" onclick="openAddSharedExpense(${idx}, ${eIdx})">✏️</button></td>
             </tr>`;
         });
         expHtml += '</tbody></table>';
