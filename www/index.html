@@ -28,7 +28,16 @@
   --touch:48px;
 }
 *{box-sizing:border-box;touch-action:manipulation}
-html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--md-on-surface)}
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #ffffff; /* Fuerza un blanco sólido en lugar de la variable --bg durante la carga */
+    color: var(--md-on-surface);
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden; /* Evita que la app se mueva horizontalmente al hacer scroll */
+}
 button,input,select{font:inherit}
 button{cursor:pointer}
 .topbar{position:sticky;top:0;z-index:1000;background:var(--md-surface);border-bottom:1px solid var(--md-outline-variant);padding:calc(env(safe-area-inset-top, 0px) + 16px) 16px 16px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px var(--md-shadow)}
