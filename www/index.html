@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Monywissen</title>
 <style>
 :root{
@@ -31,7 +31,7 @@
 html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--md-on-surface)}
 button,input,select{font:inherit}
 button{cursor:pointer}
-.topbar{position:sticky;top:0;z-index:1000;background:var(--md-surface);border-bottom:1px solid var(--md-outline-variant);padding:16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px var(--md-shadow)}
+.topbar{position:sticky;top:0;z-index:1000;background:var(--md-surface);border-bottom:1px solid var(--md-outline-variant);padding:calc(env(safe-area-inset-top, 0px) + 16px) 16px 16px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px var(--md-shadow)}
 .topbar .title{font-size:22px;font-weight:700}
 .topbar .actions{display:flex;gap:12px}
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:1999;display:none;opacity:0;transition:opacity .3s}
@@ -58,21 +58,6 @@ button{cursor:pointer}
 .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
 input,select{width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--md-outline);background:var(--md-surface);color:var(--md-on-surface);min-height:var(--touch)}
 input:focus,select:focus{outline:none;border-color:var(--md-primary)}
-
-/* DISEÑO DEL NUEVO SELECTOR PERSONALIZADO */
-.custom-select-btn {
-  width:100%; padding:14px 16px; border-radius:12px; border:1px solid var(--md-outline); background:var(--md-surface); color:var(--md-on-surface); min-height:var(--touch); display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-size:14px; transition: background 0.2s;
-}
-.custom-select-btn:active { background:var(--md-surface-variant); }
-
-/* Ajuste sutil para selectores compactos en herramientas de gráficos o filtros */
-.grid[style*="repeat(3"] .custom-select-btn {
-  padding: 8px 12px;
-  min-height: 35px;
-  font-size: 12px;
-  border-radius: 10px;
-}
-
 label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bottom:6px}
 .table{width:100%;border-collapse:separate;border-radius:12px}
 .table th,.table td{padding:14px 10px;border-bottom:1px solid var(--md-outline-variant);font-size:14px}
@@ -1515,59 +1500,6 @@ function debtForm(x={}){
 // =========================================================================
 // MOTOR INTERCEPTOR DE SELECTS (BOTTOM SHEET PREMIUM)
 // =========================================================================
-window.initCustomSelects = function() {
-    document.querySelectorAll('select:not(.customized)').forEach(sel => {
-        if(sel.style.display === 'none' && !sel.id) return; // Ignora selects ya ocultos
-        
-        sel.classList.add('customized');
-        sel.style.display = 'none'; // Oculta el gigante y feo nativo
-
-        const visualBtn = document.createElement('div');
-        visualBtn.className = 'custom-select-btn';
-        
-        sel.updateVisual = function() {
-            const opt = sel.options[sel.selectedIndex];
-            visualBtn.innerHTML = `<span style="font-weight:600; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${opt ? opt.text : ''}</span> <span style="font-size:12px; color:var(--md-primary);">▼</span>`;
-        };
-        sel.updateVisual();
-
-        visualBtn.onclick = function() {
-            let optsHtml = '';
-            Array.from(sel.options).forEach(opt => {
-                const isSelected = opt.value === sel.value;
-                const bg = isSelected ? 'var(--md-primary-container)' : 'transparent';
-                const col = isSelected ? 'var(--md-primary)' : 'var(--md-on-surface)';
-                
-                optsHtml += `<div style="padding:16px 24px; background:${bg}; color:${col}; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--md-outline-variant)50;" onclick="selectCustomOption('${sel.id}', '${opt.value}')">
-                    <span style="font-size:15px; font-weight:${isSelected ? '900' : '500'};">${opt.text}</span>
-                    ${isSelected ? '<span style="font-size:18px; font-weight:900;">✓</span>' : ''}
-                </div>`;
-            });
-            
-            let title = 'Elige una opción';
-            const labelEl = sel.previousElementSibling;
-            if(labelEl && labelEl.tagName.toLowerCase() === 'label') title = labelEl.textContent;
-
-            byId('selectModalTitle').textContent = title;
-            byId('selectModalOptions').innerHTML = optsHtml;
-            byId('selectModal').classList.add('active');
-        };
-
-        sel.parentNode.insertBefore(visualBtn, sel.nextSibling);
-    });
-};
-
-window.selectCustomOption = function(selectId, value) {
-    const sel = byId(selectId);
-    if(sel) {
-        sel.value = value;
-        sel.updateVisual();
-        if (typeof sel.onchange === 'function') sel.onchange(); 
-        else if (sel.getAttribute('onchange')) new Function(sel.getAttribute('onchange')).call(sel);
-        else sel.dispatchEvent(new Event('change')); 
-    }
-    closeSelectModal();
-};
 
 window.closeSelectModal = function() { byId('selectModal').classList.remove('active'); };
 
@@ -1602,7 +1534,6 @@ function openCreate(type, forceOneTime = false){
   byId('modal').classList.add('active');
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
   if(type==='expense'){toggleFreqOpts();}
-  setTimeout(initCustomSelects, 50); // Módulos premium activados
 }
 
 function openEdit(type, idx) {
@@ -1630,7 +1561,6 @@ function openEdit(type, idx) {
   byId('modal').classList.add('active');
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
   if(type==='expense'){toggleFreqOpts();} 
-  setTimeout(initCustomSelects, 50); // Módulos premium activados
   if(type === 'saving') setTimeout(renderDeliveryPreviews, 100);
 }
 
@@ -3281,9 +3211,6 @@ function render() {
           renderSharedAccounts();
       }
   }
-  
-  // SOLUCIÓN: Forzar el diseño custom en los selectores después de cada render
-  setTimeout(initCustomSelects, 50);
 }
 
 function syncForm() {
@@ -3310,7 +3237,6 @@ function initUI() {
   
   setTimeout(updateChart, 500); 
   checkWeeklyBackup(); 
-  setTimeout(initCustomSelects, 200); // <-- ¡Aquí es donde despierta el interceptor premium al cargar la app!
 
   // --- CENTINELA DE LIBRERÍAS (Antibloqueo de Interfaz) ---
   // Revisa cada segundo si las herramientas lograron cargar.

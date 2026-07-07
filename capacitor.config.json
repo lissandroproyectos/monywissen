@@ -10,7 +10,8 @@
     },
     "StatusBar": {
       "style": "LIGHT",
-      "overlay": true
+      "overlay": true,
+      "backgroundColor": "#00000000"
     }
   }
 }
