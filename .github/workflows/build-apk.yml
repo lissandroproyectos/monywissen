@@ -24,7 +24,9 @@ jobs:
           java-version: '17'
 
       - name: Install Dependencies
-        run: npm install
+        run: |
+          npm install
+          npm install @capacitor/status-bar
 
       - name: Add Android Platform and Assets
         run: |
