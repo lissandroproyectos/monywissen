@@ -45,15 +45,26 @@ jobs:
                   <item name="colorPrimaryDark">@android:color/white</item>
                   <item name="colorAccent">@android:color/black</item>
                   <item name="android:background">@android:color/white</item>
+                  <item name="android:datePickerDialogTheme">@style/CleanDialogTheme</item>
+                  <item name="android:alertDialogTheme">@style/CleanDialogTheme</item>
               </style>
               <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
                   <item name="windowNoTitle">true</item>
                   <item name="android:windowFullscreen">true</item>
                   <item name="android:windowBackground">@android:color/white</item>
                   <item name="android:colorBackground">@android:color/white</item>
+                  <item name="android:datePickerDialogTheme">@style/CleanDialogTheme</item>
+                  <item name="android:alertDialogTheme">@style/CleanDialogTheme</item>
+                  <item name="android:windowTranslucentStatus">true</item>
+                  <item name="android:windowTranslucentNavigation">true</item>
+                  <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
               </style>
               <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
                   <item name="android:background">@drawable/splash</item>
+              </style>
+              
+              <style name="CleanDialogTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
+                  <item name="android:windowBackground">@android:color/white</item>
               </style>
           </resources>' > android/app/src/main/res/values/styles.xml
 

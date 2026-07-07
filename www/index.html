@@ -3272,16 +3272,20 @@ function render() {
   renderTransactions();
   renderDebts();
   renderCalendar();
-  renderListView(); // <-- ESTA ES LA MAGIA QUE ARREGLA EL BUG DE ACTUALIZACIÓN EN TIEMPO REAL
+  renderListView(); 
   renderDashboard();
   renderSavings();
   renderSettings();
   if (document.querySelector('.section.active') && document.querySelector('.section.active').id === 'shared') {
-		if(byId('sharedDetailView').style.display !== 'block') {
-			renderSharedAccounts();
-		}
-	}
+      if(byId('sharedDetailView').style.display !== 'block') {
+          renderSharedAccounts();
+      }
+  }
+  
+  // SOLUCIÓN: Forzar el diseño custom en los selectores después de cada render
+  setTimeout(initCustomSelects, 50);
 }
+
 function syncForm() {
 renderSettings();
 renderSavings();

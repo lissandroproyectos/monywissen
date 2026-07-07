@@ -7,6 +7,10 @@
       "scopes": ["profile", "email"],
       "serverClientId": "987859318051-s78uq9pcqseg0u0hlren3tdqbpcrdav2.apps.googleusercontent.com",
       "forceCodeForRefreshToken": true
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "overlay": true
     }
   }
 }
