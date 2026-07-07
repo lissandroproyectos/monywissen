@@ -51,9 +51,7 @@ jobs:
               <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
                   <item name="windowActionBar">false</item>
                   <item name="windowNoTitle">true</item>
-                  
                   <item name="android:windowBackground">@android:color/white</item>
-                  <item name="android:background">@null</item>
                   
                   <item name="android:windowTranslucentStatus">true</item>
                   <item name="android:windowTranslucentNavigation">true</item>
@@ -62,7 +60,7 @@ jobs:
                   <item name="android:datePickerDialogTheme">@android:style/Theme.DeviceDefault.Light.Dialog</item>
                   <item name="android:alertDialogTheme">@android:style/Theme.DeviceDefault.Light.Dialog.Alert</item>
               </style>
-              
+
               <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
                   <item name="android:background">@drawable/splash</item>
               </style>
