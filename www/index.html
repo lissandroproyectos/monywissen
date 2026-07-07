@@ -58,17 +58,21 @@ button{cursor:pointer}
 .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
 input,select{width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--md-outline);background:var(--md-surface);color:var(--md-on-surface);min-height:var(--touch)}
 input:focus,select:focus{outline:none;border-color:var(--md-primary)}
-/* Escudo contra el renderizado feo de Android */
-select {
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2379747e'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 24px;
-  padding-right: 40px !important;
-  background-color: var(--md-surface);
+
+/* DISEÑO DEL NUEVO SELECTOR PERSONALIZADO */
+.custom-select-btn {
+  width:100%; padding:14px 16px; border-radius:12px; border:1px solid var(--md-outline); background:var(--md-surface); color:var(--md-on-surface); min-height:var(--touch); display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-size:14px; transition: background 0.2s;
 }
+.custom-select-btn:active { background:var(--md-surface-variant); }
+
+/* Ajuste sutil para selectores compactos en herramientas de gráficos o filtros */
+.grid[style*="repeat(3"] .custom-select-btn {
+  padding: 8px 12px;
+  min-height: 35px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
 label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bottom:6px}
 .table{width:100%;border-collapse:separate;border-radius:12px}
 .table th,.table td{padding:14px 10px;border-bottom:1px solid var(--md-outline-variant);font-size:14px}
@@ -283,19 +287,22 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 			<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
 			   <div class="heading" style="font-size:14px; margin:0;">Proyección Visual</div>
 			   <div style="display:flex; gap:4px; background:var(--md-surface-variant); padding:4px; border-radius:8px;">
-			      <button class="btn" style="padding:4px 8px; font-size:12px; min-height:0; border:none; background:var(--md-surface); box-shadow:0 1px 2px rgba(0,0,0,0.1);" onclick="cycleChart()" id="btnCycleChart">📈 Líneas</button>
-			      <button class="btn" style="padding:4px 8px; font-size:12px; min-height:0; border:none; background:transparent; color:var(--md-on-surface-variant);" onclick="setDefaultChart()" title="Fijar como predeterminado">📌</button>
+				  <button class="btn" style="padding:4px 8px; font-size:12px; min-height:0; border:none; background:var(--md-surface); box-shadow:0 1px 2px rgba(0,0,0,0.1);" onclick="cycleChart()" id="btnCycleChart">📈 Líneas</button>
+				  <button class="btn" style="padding:4px 8px; font-size:12px; min-height:0; border:none; background:transparent; color:var(--md-on-surface-variant);" onclick="setDefaultChart()" title="Fijar como predeterminado">📌</button>
 			   </div>
 			</div>
 			
 			<div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; gap:8px;">
 				<div><label style="font-size:10px;">Inicio del Plan</label><input type="date" id="chartStart" style="padding:8px; min-height:0; font-size:12px;" onchange="updateGlobalPlanDates()"></div>
 				<div><label style="font-size:10px;">Fin del Plan</label><input type="date" id="chartEnd" style="padding:8px; min-height:0; font-size:12px;" onchange="updateGlobalPlanDates()"></div>
-				<div id="chartGroupWrap"><label style="font-size:10px;">Agrupar</label><select id="chartGroup" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()">
-				   <option value="day">Día</option>
-				   <option value="week" selected>Semana</option>
-				   <option value="month">Mes</option>
-				</select></div>
+				<div id="chartGroupWrap" style="display: flex; flex-direction: column;">
+					<label style="font-size:10px;">Agrupar</label>
+					<select id="chartGroup" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()">
+						<option value="day">Día</option>
+						<option value="week" selected>Semana</option>
+						<option value="month">Mes</option>
+					</select>
+				</div>
 			</div>
 			
 			<div id="chartSwipeArea" style="height: 250px; width:100%; position:relative; touch-action: pan-y;">
@@ -548,6 +555,16 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <button class="navbtn" data-view="expenses">Gastos</button>
   <button class="navbtn" data-view="debts">Deudas</button>
   <button class="navbtn" data-view="transactions">Únicas</button>
+</div>
+
+<div class="modal" id="selectModal" style="z-index: 9500; align-items:flex-end;" onclick="closeSelectModal()">
+  <div class="card" style="margin:0; width:100%; max-width:600px; border-radius:24px 24px 0 0; padding:0; animation: slideUp 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);" onclick="event.stopPropagation()">
+     <div style="padding:16px; text-align:center; border-bottom:1px solid var(--md-outline-variant); position:relative;">
+         <div style="width:40px; height:4px; background:var(--md-outline-variant); border-radius:2px; margin:0 auto 12px;"></div>
+         <div class="heading" id="selectModalTitle" style="margin:0; font-size:16px; color:var(--md-primary);">Seleccionar Opción</div>
+     </div>
+     <div id="selectModalOptions" style="max-height:60vh; overflow-y:auto; padding-bottom:16px;"></div>
+  </div>
 </div>
 
 <div class="modal" id="modal">
@@ -1287,6 +1304,7 @@ function initProfiles(){
   let opts = Object.keys(app.profiles).map(p=>'<option value="'+p+'" '+(p===currentProfile?'selected':'')+'>'+p+'</option>').join('');
   opts += '<option value="_CREATE_NEW_" style="font-weight:bold; color:var(--md-primary);">➕ Crear Nuevo Perfil...</option>';
   byId('profileSelect').innerHTML = opts;
+  if (byId('profileSelect').updateVisual) byId('profileSelect').updateVisual();
 }
 
 function switchProfile(name){
@@ -1405,7 +1423,12 @@ function toggleDebtType() {
   const showInt = (!isCashea && !isNoLoan && (!customDef || customDef.hasInterest));
   byId('mod_interest').style.display = showInt ? 'contents' : 'none';
 
-  if (byId('f_hasInterest')) byId('f_hasInterest').value = showInt ? 'true' : 'false';
+  if (byId('f_hasInterest')) {
+      byId('f_hasInterest').value = showInt ? 'true' : 'false';
+      if (byId('f_hasInterest').updateVisual) byId('f_hasInterest').updateVisual();
+  }
+  if (byId('f_plan') && byId('f_plan').updateVisual) byId('f_plan').updateVisual();
+  
   toggleAprSection();
   showDebtProjection(); 
 
@@ -1489,6 +1512,65 @@ function debtForm(x={}){
   '</div>';
 }
 
+// =========================================================================
+// MOTOR INTERCEPTOR DE SELECTS (BOTTOM SHEET PREMIUM)
+// =========================================================================
+window.initCustomSelects = function() {
+    document.querySelectorAll('select:not(.customized)').forEach(sel => {
+        if(sel.style.display === 'none' && !sel.id) return; // Ignora selects ya ocultos
+        
+        sel.classList.add('customized');
+        sel.style.display = 'none'; // Oculta el gigante y feo nativo
+
+        const visualBtn = document.createElement('div');
+        visualBtn.className = 'custom-select-btn';
+        
+        sel.updateVisual = function() {
+            const opt = sel.options[sel.selectedIndex];
+            visualBtn.innerHTML = `<span style="font-weight:600; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${opt ? opt.text : ''}</span> <span style="font-size:12px; color:var(--md-primary);">▼</span>`;
+        };
+        sel.updateVisual();
+
+        visualBtn.onclick = function() {
+            let optsHtml = '';
+            Array.from(sel.options).forEach(opt => {
+                const isSelected = opt.value === sel.value;
+                const bg = isSelected ? 'var(--md-primary-container)' : 'transparent';
+                const col = isSelected ? 'var(--md-primary)' : 'var(--md-on-surface)';
+                
+                optsHtml += `<div style="padding:16px 24px; background:${bg}; color:${col}; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--md-outline-variant)50;" onclick="selectCustomOption('${sel.id}', '${opt.value}')">
+                    <span style="font-size:15px; font-weight:${isSelected ? '900' : '500'};">${opt.text}</span>
+                    ${isSelected ? '<span style="font-size:18px; font-weight:900;">✓</span>' : ''}
+                </div>`;
+            });
+            
+            let title = 'Elige una opción';
+            const labelEl = sel.previousElementSibling;
+            if(labelEl && labelEl.tagName.toLowerCase() === 'label') title = labelEl.textContent;
+
+            byId('selectModalTitle').textContent = title;
+            byId('selectModalOptions').innerHTML = optsHtml;
+            byId('selectModal').classList.add('active');
+        };
+
+        sel.parentNode.insertBefore(visualBtn, sel.nextSibling);
+    });
+};
+
+window.selectCustomOption = function(selectId, value) {
+    const sel = byId(selectId);
+    if(sel) {
+        sel.value = value;
+        sel.updateVisual();
+        if (typeof sel.onchange === 'function') sel.onchange(); 
+        else if (sel.getAttribute('onchange')) new Function(sel.getAttribute('onchange')).call(sel);
+        else sel.dispatchEvent(new Event('change')); 
+    }
+    closeSelectModal();
+};
+
+window.closeSelectModal = function() { byId('selectModal').classList.remove('active'); };
+
 function singleTransactionForm(type, x={}) {
   return '<div class="grid grid2">'+
     '<div><label>Nombre / Concepto</label><input id="f_name" value="'+(x.name||'')+'" required></div>'+
@@ -1500,7 +1582,7 @@ function singleTransactionForm(type, x={}) {
 
 function openCreate(type, forceOneTime = false){
   modalType=type; modalIndex=null;
-  window.isSingleTransaction = forceOneTime; // Guardamos el estado globalmente
+  window.isSingleTransaction = forceOneTime; 
   
   byId('modalTitle').textContent = forceOneTime ? (type==='income'?'Nuevo Ingreso Único':'Nuevo Gasto Único') : (type==='income'?'Nuevo ingreso':type==='expense'?'Nuevo gasto':type==='saving'?'Registrar Ahorro/Divisa':'Nueva deuda');
   byId('btnDelete').style.display='none';
@@ -1520,13 +1602,13 @@ function openCreate(type, forceOneTime = false){
   byId('modal').classList.add('active');
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
   if(type==='expense'){toggleFreqOpts();}
+  setTimeout(initCustomSelects, 50); // Módulos premium activados
 }
 
 function openEdit(type, idx) {
   modalType = type; modalIndex = idx;
   const p = prof();
   
-  // Detectamos si el elemento a editar es una transacción única (one-time)
   const item = type === 'income' ? p.incomes[idx] : p.expenses[idx];
   window.isSingleTransaction = item && item.freq === 'one-time';
 
@@ -1548,6 +1630,7 @@ function openEdit(type, idx) {
   byId('modal').classList.add('active');
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
   if(type==='expense'){toggleFreqOpts();} 
+  setTimeout(initCustomSelects, 50); // Módulos premium activados
   if(type === 'saving') setTimeout(renderDeliveryPreviews, 100);
 }
 
@@ -1557,13 +1640,13 @@ window.toggleSavingType = function() {
     if (type === 'digital') {
         byId('mod_sav_platform').style.display = 'block';
         byId('mod_sav_delivery').style.display = 'none';
-        // En digital asumimos acreditado o pendiente (no hay entregas medias)
         byId('f_sav_status').innerHTML = '<option value="pending">⏳ Pendiente de acreditación</option><option value="completed" selected>✅ Acreditado / Completado</option>';
     } else {
         byId('mod_sav_platform').style.display = 'none';
         byId('mod_sav_delivery').style.display = 'block';
         byId('f_sav_status').innerHTML = '<option value="pending">⏳ Pendiente / Por cobrar</option><option value="partial">🔄 Entrega Parcial</option><option value="completed">✅ Completado / En Mano</option>';
     }
+    if(byId('f_sav_status') && byId('f_sav_status').updateVisual) byId('f_sav_status').updateVisual();
 };
 
 function savingForm(x={}){
@@ -3225,6 +3308,7 @@ function initUI() {
   
   setTimeout(updateChart, 500); 
   checkWeeklyBackup(); 
+  setTimeout(initCustomSelects, 200); // <-- ¡Aquí es donde despierta el interceptor premium al cargar la app!
 
   // --- CENTINELA DE LIBRERÍAS (Antibloqueo de Interfaz) ---
   // Revisa cada segundo si las herramientas lograron cargar.
@@ -3245,7 +3329,7 @@ function initUI() {
       if (libCheckCount >= 4) clearInterval(libCheckInterval);
   }, 1000);
 
-// NUEVO: Activar los gestos de arrastre táctil sobre la gráfica
+  // NUEVO: Activar los gestos de arrastre táctil sobre la gráfica
   setTimeout(() => {
       const area = byId('chartSwipeArea');
       if(area && typeof Hammer !== 'undefined') {
@@ -3255,8 +3339,6 @@ function initUI() {
       }
   }, 1000);
 }
-
-
 function closeDrawerOnSelect() {
   if (byId('drawer').classList.contains('open')) toggleDrawer();
 }
