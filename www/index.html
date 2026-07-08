@@ -7,9 +7,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.2.92" />
+<meta name="app-version" content="1.2.93" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
-<meta name="changelog" content="- Correccion de actualiacion.<br>- Motor de descarga directa y barra de progreso.<br>- Corregidos los selectores de fecha en el dashboard." />
+<meta name="changelog" content="- Correccion de actualiaciones.<br>- Motor de descarga directa y barra de progreso." />
+<meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
 
 <title>Monywissen</title>
 <style>
@@ -6020,116 +6021,96 @@ function notifyUpdateAvailable() {
 }
 
 window.renderSettingsTabAbout = function() {
-    const container = byId('updateUIContainer');
-    if (!container) return;
-
+    const container = byId('updateUIContainer'); if (!container) return;
     let changelogHtml = '';
     if (window.updateData.changelog) {
         let formattedLog = window.updateData.changelog.replace(/\r\n/g, '<br>').replace(/\n/g, '<br>');
-        changelogHtml = `
-            <div style="background:var(--md-surface); border:1px solid var(--md-outline-variant); padding:12px; border-radius:8px; margin:12px 0; font-size:12px; color:var(--md-on-surface-variant); max-height:150px; overflow-y:auto; line-height:1.4;">
+        changelogHtml = `<div style="background:var(--md-surface); border:1px solid var(--md-outline-variant); padding:12px; border-radius:8px; margin:12px 0; font-size:12px; color:var(--md-on-surface-variant); max-height:150px; overflow-y:auto; line-height:1.4;">
                 <div style="font-weight:bold; color:var(--md-on-surface); margin-bottom:6px; font-size:13px;">✨ Novedades en esta versión:</div>
                 ${formattedLog}
-            </div>
-        `;
+            </div>`;
     }
 
     if (window.updateData.localPath) {
-        container.innerHTML = `
-            <div style="color:#0f9d58; font-weight:bold; margin-bottom:4px;">✅ Actualización ${window.updateData.version} lista</div>
-            <div class="small">Ya descargaste la nueva versión. Está lista para instalarse.</div>
-            ${changelogHtml}
+        // ETAPA 3: ARCHIVO DESCARGADO LISTO PARA INSTALAR
+        container.innerHTML = `<div style="color:#0f9d58; font-weight:bold; margin-bottom:4px;">✅ Actualización ${window.updateData.version} lista</div>
+            <div class="small">Ya descargaste la nueva versión. Está lista para instalarse.</div>${changelogHtml}
             <button class="btn primary" style="width:100%; background:#0f9d58; border-color:#0f9d58;" onclick="installUpdate()">Instalar Ahora</button>
-            <button class="btn danger" style="width:100%; margin-top:8px; border:none; font-size:12px; background:transparent;" onclick="discardUpdate()">Descartar Descarga</button>
-        `;
+            <button class="btn danger" style="width:100%; margin-top:8px; border:none; font-size:12px; background:transparent;" onclick="discardUpdate()">Descartar Descarga</button>`;
     } else if (window.updateData.available) {
-        container.innerHTML = `
-            <div style="color:var(--md-primary); font-weight:bold; margin-bottom:4px;">🚀 Nueva Versión ${window.updateData.version} disponible</div>
-            ${changelogHtml}
-            <button class="btn primary" style="width:100%;" onclick="downloadUpdate()">Descargar Actualización</button>
-        `;
+        if (window.updateData.isDownloading) {
+            // ETAPA 2: DESCARGANDO EN SEGUNDO PLANO (Botón verde pintándose progresivamente)
+            container.innerHTML = `<div style="color:var(--md-primary); font-weight:bold; margin-bottom:4px;">🚀 Descargando Versión ${window.updateData.version}...</div>${changelogHtml}
+                <button class="btn" style="width:100%; position:relative; overflow:hidden; border:none; background:var(--md-surface-variant); color:var(--md-on-surface);" disabled>
+                    <div id="btnDownloadProgress" style="position:absolute; top:0; left:0; height:100%; width:${window.updateData.downloadProgress || 0}%; background:#0f9d58; transition:width 0.2s; z-index:0;"></div>
+                    <span id="btnDownloadText" style="position:relative; z-index:1; font-weight:bold; color:#1c1b1f;">Descargando... ${window.updateData.downloadProgress || 0}%</span>
+                </button>
+                <div class="small" style="text-align:center; margin-top:8px; color:var(--md-primary);">Puedes minimizar este menú y seguir usando la app.</div>`;
+        } else {
+            // ETAPA 1: ACTUALIZACIÓN ENCONTRADA PERO SIN DESCARGAR
+            container.innerHTML = `<div style="color:var(--md-primary); font-weight:bold; margin-bottom:4px;">🚀 Nueva Versión ${window.updateData.version} disponible</div>${changelogHtml}
+                <button class="btn primary" style="width:100%; position:relative; overflow:hidden; border:none;" onclick="downloadUpdate()">
+                    <div id="btnDownloadProgress" style="position:absolute; top:0; left:0; height:100%; width:0%; background:#0f9d58; transition:width 0.2s; z-index:0;"></div>
+                    <span id="btnDownloadText" style="position:relative; z-index:1;">Descargar Actualización</span>
+                </button>`;
+        }
     } else {
-        container.innerHTML = `
-            <div style="color:var(--md-on-surface-variant); margin-bottom:12px;">Tu aplicación está al día.</div>
-            <button class="btn" style="width:100%;" onclick="checkForUpdates(true)">Buscar Actualizaciones</button>
-        `;
+        // ETAPA 0: APP TOTALMENTE ACTUALIZADA
+        container.innerHTML = `<div style="color:var(--md-on-surface-variant); margin-bottom:12px;">Tu aplicación está al día.</div>
+            <button class="btn" style="width:100%;" onclick="checkForUpdates(true)">Buscar Actualizaciones</button>`;
     }
 };
 
 window.downloadUpdate = async function() {
-    if (!window.Capacitor || !window.Capacitor.Plugins.Filesystem) {
-        return window.open(window.updateData.downloadUrl, '_blank'); 
-    }
-
-    showDialog({
-        title: 'Descargando...',
-        msg: `
-            <div style="text-align:center; margin-bottom:12px; font-size:12px;">No cierres la aplicación durante este proceso.</div>
-            <div class="progress" style="background:var(--md-outline-variant); height:16px; border-radius:8px; overflow:hidden;">
-                <div id="updProgressBar" class="bar" style="width:0%; background:var(--md-primary); height:100%; transition:width 0.2s;"></div>
-            </div>
-            <div id="updProgressText" style="text-align:center; font-weight:bold; margin-top:8px; font-size:14px; color:var(--md-primary);">Iniciando...</div>
-        `,
-        hideCancel: true, confirmText: 'Ocultar al fondo'
-    });
+    if (!window.Capacitor || !window.Capacitor.Plugins.Filesystem) return window.open(window.updateData.downloadUrl, '_blank'); 
+    
+    // Activa la bandera de descarga y repinta el botón (lo bloquea e inicia la animación)
+    window.updateData.isDownloading = true;
+    window.updateData.downloadProgress = 0;
+    renderSettingsTabAbout(); 
 
     try {
-        const response = await fetch(window.updateData.downloadUrl);
-        const contentLength = response.headers.get('content-length');
-        const total = parseInt(contentLength, 10);
-        let loaded = 0;
-        
-        const reader = response.body.getReader();
-        let chunks = [];
+        const response = await fetch(window.updateData.downloadUrl, { cache: 'no-store' });
+        const total = parseInt(response.headers.get('content-length'), 10);
+        let loaded = 0; const reader = response.body.getReader(); let chunks = [];
         
         while(true) {
-            const {done, value} = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            loaded += value.length;
+            const {done, value} = await reader.read(); if (done) break;
+            chunks.push(value); loaded += value.length;
             if (total) {
                 const percent = Math.round((loaded / total) * 100);
-                if(byId('updProgressBar')) byId('updProgressBar').style.width = percent + '%';
-                if(byId('updProgressText')) byId('updProgressText').textContent = percent + '%';
-            } else {
-                if(byId('updProgressText')) byId('updProgressText').textContent = (loaded / (1024*1024)).toFixed(1) + ' MB...';
+                window.updateData.downloadProgress = percent;
+                
+                // Actualizamos directamente la barra sin repintar toda la pantalla para que sea ultra suave
+                const progressEl = byId('btnDownloadProgress');
+                const textEl = byId('btnDownloadText');
+                if (progressEl) progressEl.style.width = percent + '%';
+                if (textEl) textEl.textContent = `Descargando... ${percent}%`;
             }
         }
         
-        if(byId('updProgressText')) byId('updProgressText').textContent = "Preparando archivo...";
+        const textEl = byId('btnDownloadText');
+        if(textEl) textEl.textContent = "Preparando archivo...";
         
-        let position = 0;
-        let combined = new Uint8Array(loaded);
+        let position = 0; let combined = new Uint8Array(loaded);
         for(let chunk of chunks) { combined.set(chunk, position); position += chunk.length; }
-        const base64 = await new Promise((res, rej) => {
-            const r = new FileReader();
-            r.onload = () => res(r.result.split(',')[1]);
-            r.onerror = rej;
-            r.readAsDataURL(new Blob([combined]));
-        });
+        const base64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(new Blob([combined])); });
 
         const { Filesystem } = window.Capacitor.Plugins;
-        const writeRes = await Filesystem.writeFile({
-            path: `Monywissen_v${window.updateData.version}.apk`,
-            data: base64,
-            directory: 'CACHE'
-        });
+        const writeRes = await Filesystem.writeFile({ path: `Monywissen_v${window.updateData.version}.apk`, data: base64, directory: 'CACHE' });
 
-        window.updateData.localPath = writeRes.uri;
+        // Terminó el proceso silencioso, cambiamos el estado y activamos el botón Instalar
+        window.updateData.localPath = writeRes.uri; 
         localStorage.setItem('monywissen_ready_apk', writeRes.uri);
-        closeDialog();
-        renderSettingsTabAbout();
-
-        showDialog({
-            title: '¡Descarga Exitosa! 🎉',
-            msg: 'La actualización se descargó correctamente. ¿Quieres instalarla en este momento?',
-            cancelText: 'Más tarde', confirmText: 'Instalar Ahora',
-            onConfirm: () => installUpdate()
-        });
-
-    } catch (e) {
-        closeDialog();
-        showToast('Error en la descarga. Comprueba tu internet.', '❌');
+        window.updateData.isDownloading = false;
+        
+        showToast("¡Actualización lista para instalar!", "✅");
+        renderSettingsTabAbout(); // Se redibuja para mostrar el botón de "Instalar Ahora"
+        
+    } catch (e) { 
+        window.updateData.isDownloading = false;
+        showToast('Error en la descarga. Comprueba tu internet.', '❌'); 
+        renderSettingsTabAbout(); // Se redibuja devolviendo el botón a su estado normal
     }
 };
 
