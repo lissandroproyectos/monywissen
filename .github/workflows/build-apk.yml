@@ -105,3 +105,14 @@ jobs:
           name: Monywissen-Produccion
           path: android/app/build/outputs/apk/release/Monywissen-Signed.apk
           retention-days: 7
+
+      - name: Crear o Actualizar Release en GitHub
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "android/app/build/outputs/apk/release/Monywissen-Signed.apk"
+          tag: "vLatest"
+          name: $(grep -oP '(?<=content=")[^"]*(?=")' <<< "$(grep 'meta name="app-version"' index.html)")
+          body: "Actualización automática de Monywissen."
+          allowUpdates: true
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}
