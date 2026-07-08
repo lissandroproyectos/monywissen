@@ -7,9 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.2.91" />
+<meta name="app-version" content="1.2.92" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
-<meta name="changelog" content="🚀 Novedades de esta versión:<br>- Correccion de actualiacion.<br>- Motor de descarga directa y barra de progreso.<br>- Corregidos las notificaciones de actualizaciones." />
+<meta name="changelog" content="- Correccion de actualiacion.<br>- Motor de descarga directa y barra de progreso.<br>- Corregidos los selectores de fecha en el dashboard." />
 
 <title>Monywissen</title>
 <style>
@@ -178,7 +178,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 
-  <script src="capacitor.js"></script>
+  <script src="./capacitor.js"></script>
   <script src="./js/chart.js"></script>
   <script src="./js/hammer.min.js"></script>
   <script src="./js/chartjs-plugin-zoom.min.js"></script>
@@ -315,17 +315,12 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 			   </div>
 			</div>
 			
-			<div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin-bottom:12px; align-items:end;">
-				<div>
-					<label style="font-size:12px; margin-bottom:4px; display:block; color:var(--md-on-surface-variant);">Periodo de la Gráfica</label>
-					<div class="custom-select-btn" style="padding:10px; min-height:40px; border-radius:8px;" onclick="openDateRangeModal()">
-						<span id="lblChartDates" style="font-weight:600; font-size:13px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">--/-- al --/--</span> 
-						<span style="font-size:14px; color:var(--md-primary);">📅</span>
-					</div>
-				</div>
-				<div id="chartGroupWrap" style="display:flex; flex-direction:column;">
-					<label style="font-size:12px; margin-bottom:4px; display:block; color:var(--md-on-surface-variant);">Agrupar visualización</label>
-					<select id="chartGroup" style="padding:10px; min-height:40px; border-radius:8px; font-size:13px;" onchange="updateChart()">
+			<div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; gap:8px; align-items:end;">
+				<div><label for="chartStart" style="font-size:10px;">Inicio del Plan</label><input type="date" id="chartStart" class="compact-date" style="padding:8px; min-height:0; font-size:12px;" onchange="updateGlobalPlanDates()"></div>
+				<div><label for="chartEnd" style="font-size:10px;">Fin del Plan</label><input type="date" id="chartEnd" class="compact-date" style="padding:8px; min-height:0; font-size:12px;" onchange="updateGlobalPlanDates()"></div>
+				<div id="chartGroupWrap" style="display: flex; flex-direction: column;">
+					<label for="chartGroup" style="font-size:10px;">Agrupar</label>
+					<select id="chartGroup" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()">
 						<option value="day">Día</option>
 						<option value="week" selected>Semana</option>
 						<option value="month">Mes</option>
@@ -649,7 +644,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
        <div style="margin-top:24px; width:100%; max-width:280px;">
             <div style="display:flex; background:var(--md-surface-variant); border-radius:12px; padding:4px; margin-bottom:12px;">
                 <div id="tabContactCard" style="flex:1; text-align:center; padding:6px; border-radius:8px; font-size:12px; font-weight:bold; background:var(--md-surface); color:var(--md-primary); box-shadow:0 1px 3px rgba(0,0,0,0.1); cursor:pointer; transition:all 0.2s;" onclick="toggleProfileCards('contact')">🪪 Contacto</div>
-                <div id="tabPaymentCard" style="flex:1; text-align:center; padding:6px; border-radius:8px; font-size:12px; font-weight:bold; color:var(--md-on-surface-variant); cursor:pointer; transition:all 0.2s;" onclick="toggleProfileCards('payment')">💳 Mis Cobros</div>
+                <div id="tabPaymentCard" style="flex:1; text-align:center; padding:6px; border-radius:8px; font-size:12px; font-weight:bold; color:var(--md-on-surface-variant); cursor:pointer; transition:all 0.2s;" onclick="toggleProfileCards('payment')">💳 Mis Cuentas</div>
             </div>
 
             <div id="viewContactCard" style="background:var(--md-surface); border:1px solid var(--md-outline-variant); border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
@@ -5369,8 +5364,6 @@ window.updateGlobalPlanDates = function() {
     const e = byId('chartEnd').value;
     
     if (s && e && s <= e) {
-        if(byId('lblChartStart')) byId('lblChartStart').textContent = formatDate(s);
-        if(byId('lblChartEnd')) byId('lblChartEnd').textContent = formatDate(e);
         // Actualizamos las reglas base
         p.settings.planStart = s;
         p.settings.planEnd = e;
@@ -5492,43 +5485,6 @@ function renderCalendar() {
   byId('calendarWrap').innerHTML = html;
 }
 
-window.tempRangeStart = '';
-window.tempRangeEnd = '';
-
-window.openNativeDatePicker = async function(target) {
-    let currentDate = target === 'start' ? window.tempRangeStart : window.tempRangeEnd;
-
-    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.DatetimePicker) {
-        try {
-            const result = await window.Capacitor.Plugins.DatetimePicker.present({
-                mode: 'date',
-                value: currentDate + 'T12:00:00.000Z',
-                theme: 'light'
-            });
-            if (result && result.value) {
-                const selectedDate = result.value.split('T')[0];
-                if (target === 'start') {
-                    window.tempRangeStart = selectedDate;
-                    if (byId('lblModStart')) byId('lblModStart').textContent = formatDate(selectedDate);
-                } else {
-                    window.tempRangeEnd = selectedDate;
-                    if (byId('lblModEnd')) byId('lblModEnd').textContent = formatDate(selectedDate);
-                }
-            }
-        } catch(e) { console.log("Selector cerrado"); }
-    } else {
-        const fallbackStr = prompt("Ingresa la fecha (YYYY-MM-DD):", currentDate);
-        if (fallbackStr && fallbackStr.length === 10) {
-            if (target === 'start') {
-                window.tempRangeStart = fallbackStr;
-                if (byId('lblModStart')) byId('lblModStart').textContent = formatDate(fallbackStr);
-            } else {
-                window.tempRangeEnd = fallbackStr;
-                if (byId('lblModEnd')) byId('lblModEnd').textContent = formatDate(fallbackStr);
-            }
-        }
-    }
-};
 function renderListView() {
     const txt = (byId('filterText').value || '').toLowerCase();
     
@@ -5774,55 +5730,6 @@ window.actionP2P = function(loanId, action) {
 // =========================================================================
 
 
-window.openDateRangeModal = function() {
-    const p = prof();
-    window.tempRangeStart = p.settings.planStart;
-    window.tempRangeEnd = p.settings.planEnd;
-
-    const html = `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; text-align:left;">
-            <div style="position:relative;">
-                <label style="font-size:12px; margin-bottom:4px; display:block; color:var(--md-on-surface-variant);">Inicio del Plan</label>
-                <div class="custom-select-btn" style="padding:10px; min-height:40px; border-radius:8px;" onclick="openNativeDatePicker('start')">
-                    <span id="lblModStart" style="font-weight:600;">${formatDate(window.tempRangeStart)}</span>
-                    <span style="color:var(--md-primary);">📅</span>
-                </div>
-                <input type="date" id="modChartStart" value="${window.tempRangeStart}" style="visibility:hidden; position:absolute; bottom:0; left:0; width:0; height:0; border:none; padding:0;" onchange="window.tempRangeStart=this.value; byId('lblModStart').textContent=formatDate(this.value)">
-            </div>
-            <div style="position:relative;">
-                <label style="font-size:12px; margin-bottom:4px; display:block; color:var(--md-on-surface-variant);">Fin del Plan</label>
-                <div class="custom-select-btn" style="padding:10px; min-height:40px; border-radius:8px;" onclick="openNativeDatePicker('end')">
-                    <span id="lblModEnd" style="font-weight:600;">${formatDate(window.tempRangeEnd)}</span>
-                    <span style="color:var(--md-primary);">📅</span>
-                </div>
-                <input type="date" id="modChartEnd" value="${window.tempRangeEnd}" style="visibility:hidden; position:absolute; bottom:0; left:0; width:0; height:0; border:none; padding:0;" onchange="window.tempRangeEnd=this.value; byId('lblModEnd').textContent=formatDate(this.value)">
-            </div>
-        </div>
-    `;
-    
-    showDialog({
-        title: 'Rango de Proyección',
-        msg: html,
-        hideCancel: false,
-        confirmText: 'Aplicar',
-        onConfirm: () => {
-            if (window.tempRangeStart <= window.tempRangeEnd) {
-                p.settings.planStart = window.tempRangeStart;
-                p.settings.planEnd = window.tempRangeEnd;
-                
-                if(byId('planStart')) byId('planStart').value = window.tempRangeStart;
-                if(byId('planEnd')) byId('planEnd').value = window.tempRangeEnd;
-                
-                saveApp();
-                runPlan();
-                showToast("Fechas actualizadas con éxito", "✅");
-            } else {
-                showToast("El inicio no puede ser mayor a la fecha de fin", "⚠️");
-            }
-        }
-    });
-};
-
 function renderDashboard() {
   const p = prof();
   const todayStr = today();
@@ -5927,12 +5834,18 @@ function renderDashboard() {
 
 function renderSettings() {
   const p = prof();
-  byId('planStart').value = p.settings.planStart;
-  byId('planEnd').value = p.settings.planEnd;
-  byId('minBalance').value = p.settings.minBalance;
-  byId('delayDays').value = p.settings.delayDays;
-  byId('openingBalance').value = p.settings.openingBalance;
-  byId('freeSpend').value = p.settings.freeSpend;
+  // Rellenar inputs de la pestaña de Ajustes
+  if(byId('planStart')) byId('planStart').value = p.settings.planStart;
+  if(byId('planEnd')) byId('planEnd').value = p.settings.planEnd;
+  
+  // 🌟 REPARACIÓN: Rellenar también los inputs del Dashboard para que no aparezcan vacíos
+  if(byId('chartStart')) byId('chartStart').value = p.settings.planStart;
+  if(byId('chartEnd')) byId('chartEnd').value = p.settings.planEnd;
+
+  if(byId('minBalance')) byId('minBalance').value = p.settings.minBalance;
+  if(byId('delayDays')) byId('delayDays').value = p.settings.delayDays;
+  if(byId('openingBalance')) byId('openingBalance').value = p.settings.openingBalance;
+  if(byId('freeSpend')) byId('freeSpend').value = p.settings.freeSpend;
   
   // NUEVO: Carga la hora guardada en el input del reloj de ajustes
   if (byId('notifTimeInput')) {
