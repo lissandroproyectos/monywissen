@@ -9,7 +9,6 @@
     "@capacitor/filesystem": "^6.0.0",
     "@capacitor/share": "^6.0.0",
     "@capacitor/local-notifications": "^6.0.0",
-    "@codetrix-studio/capacitor-google-auth": "latest",
-    "capacitor-app-installer": "^1.0.3"
+    "@codetrix-studio/capacitor-google-auth": "latest"
   }
 }
