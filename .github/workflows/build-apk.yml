@@ -110,19 +110,21 @@ jobs:
           path: android/app/build/outputs/apk/release/Monywissen.apk
           retention-days: 7
 
-      - name: Extraer versión del HTML
+      - name: Extraer versión y novedades del HTML
         id: get_version
         run: |
           VERSION=$(grep -oP '(?<=content=")[^"]*(?=")' <<< "$(grep 'meta name="app-version"' www/index.html)")
+          CHANGELOG=$(grep -oP '(?<=content=")[^"]*(?=")' <<< "$(grep 'meta name="changelog"' www/index.html)")
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "APP_CHANGELOG=$CHANGELOG" >> $GITHUB_ENV
 
       - name: Crear o Actualizar Release en GitHub
         uses: ncipollo/release-action@v1
         with:
           artifacts: "android/app/build/outputs/apk/release/Monywissen.apk"
           tag: "vLatest"
-          name: ${{ env.APP_VERSION }} # Aquí usamos la variable extraída
-          body: "Actualización automática de Monywissen."
+          name: ${{ env.APP_VERSION }}
+          body: ${{ env.APP_CHANGELOG }} 
           allowUpdates: true
           replacesArtifacts: true
           token: ${{ secrets.GITHUB_TOKEN }}

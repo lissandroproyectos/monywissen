@@ -3,10 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="0.3.0" />
+<meta name="app-version" content="0.2.0" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
-<meta name="github-store" content="ttps://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
+<meta name="changelog" content="🚀 Novedades de esta versión:
+- Sistema inteligente OTA de actualizaciones.
+- Motor de descarga directa y barra de progreso.
+- Corrgidos los colores de las notificaciones." />
 
 <title>Monywissen</title>
 <style>
@@ -33,19 +39,10 @@
   --touch:48px;
 }
 *{box-sizing:border-box;touch-action:manipulation}
-html, body {
-    margin: 0;
-    padding: 0;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    background: #ffffff; /* Fuerza un blanco sólido en lugar de la variable --bg durante la carga */
-    color: var(--md-on-surface);
-    width: 100%;
-    height: 100%;
-    overflow-x: hidden; /* Evita que la app se mueva horizontalmente al hacer scroll */
-}
+html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--md-on-surface)}
 button,input,select{font:inherit}
 button{cursor:pointer}
-.topbar{position:sticky;top:0;z-index:1000;background:var(--md-surface);border-bottom:1px solid var(--md-outline-variant);padding:calc(env(safe-area-inset-top, 0px) + 16px) 16px 16px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px var(--md-shadow)}
+.topbar{position:sticky;top:0;z-index:1000;background:var(--md-surface);border-bottom:1px solid var(--md-outline-variant);padding:16px; padding-top:calc(16px + env(safe-area-inset-top)); display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px var(--md-shadow)}
 .topbar .title{font-size:22px;font-weight:700}
 .topbar .actions{display:flex;gap:12px}
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:1999;display:none;opacity:0;transition:opacity .3s}
@@ -56,7 +53,7 @@ button{cursor:pointer}
 .drawer .sub{font-size:13px;color:var(--md-on-surface-variant);margin-bottom:20px}
 .drawer .navbtn{width:100%;text-align:left;padding:14px 16px;margin:4px 0;border-radius:12px;background:transparent;color:var(--md-on-surface);min-height:var(--touch);border:none}
 .drawer .navbtn.active{background:var(--md-primary-container);color:var(--md-primary)}
-.content{padding:16px;min-height:100vh;padding-bottom:100px}
+.content{padding:16px;min-height:100vh;padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .card{background:var(--md-surface);border:1px solid var(--md-outline-variant);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:16px}
 .card .heading{font-size:16px;font-weight:600;margin-bottom:12px}
 .btn{border:1px solid var(--md-outline-variant);background:var(--md-surface);color:var(--md-on-surface);padding:12px 16px;border-radius:12px;cursor:pointer;min-height:var(--touch);font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:1}
@@ -79,13 +76,23 @@ input:focus,select:focus{outline:none;border-color:var(--md-primary)}
 }
 .custom-select-btn:active { background:var(--md-surface-variant); }
 
-/* Ajuste sutil para selectores compactos en herramientas de gráficos o filtros */
-.grid[style*="repeat(3"] .custom-select-btn {
-  padding: 8px 12px;
-  min-height: 35px;
-  font-size: 12px;
-  border-radius: 10px;
+/* Diseño compacto y blindado para filtros, selectores y fechas */
+.grid[style*="repeat(3"] .custom-select-btn,
+input[type="date"].compact-date {
+  padding: 8px 10px !important;
+  min-height: 36px !important;
+  font-size: 12px !important;
+  border-radius: 10px !important;
+  box-sizing: border-box !important;
 }
+
+/* Evita que el ícono nativo del calendario deforme la caja */
+input[type="date"].compact-date::-webkit-calendar-picker-indicator {
+  margin-left: 0;
+  padding-left: 4px;
+  opacity: 0.6;
+}
+
 
 label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bottom:6px}
 .table{width:100%;border-collapse:separate;border-radius:12px}
@@ -101,7 +108,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 .modal.active{display:flex}
 .modal .card{width:100%;max-width:600px;max-height:90vh;overflow:auto;border-radius:24px 24px 0 0;margin:0 auto;animation:slideUp .3s}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--md-surface);border-top:1px solid var(--md-outline-variant);display:flex;justify-content:space-around;padding:8px 0 calc(env(safe-area-inset-bottom, 0px) + 8px) 0;z-index:1500;display:none}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--md-surface);border-top:1px solid var(--md-outline-variant);display:flex;justify-content:space-around;padding:8px 0; padding-bottom:calc(8px + env(safe-area-inset-bottom)); z-index:1500;display:none}
 .bottom-nav .navbtn{flex:1;text-align:center;padding:8px;border:none;background:transparent;color:var(--md-on-surface-variant);font-size:11px}
 .bottom-nav .navbtn.active{color:var(--md-primary);background:var(--md-primary-container)}
 .section{display:none}
@@ -220,10 +227,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:12px">
-    <button class="btn icon" style="position:relative;" onclick="toggleDrawer()">
-       <svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
-       <div id="menuUpdateDot" style="display:none; position:absolute; top:8px; right:8px; width:10px; height:10px; background:var(--md-error); border-radius:50%; border:2px solid var(--md-surface);"></div>
-    </button>
+    <button class="btn icon" onclick="toggleDrawer()"><svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
     <div class="title" style="display:flex; align-items:center; gap:8px;">
         <span id="topTitle">Dashboard</span>
         <div id="topAlertBadge" style="display:none; transition: opacity 0.3s;"></div>
@@ -255,11 +259,8 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <button class="navbtn" data-view="savings">Ahorros</button>
   <button class="navbtn" data-view="transactions">Transaccion</button>
   <button class="navbtn" data-view="shared">MonyShared</button>
-  <button class="navbtn" data-view="settings" style="position:relative; display:flex; justify-content:space-between; align-items:center;">
-      Ajustes <div id="drawerUpdateDot" style="display:none; width:8px; height:8px; background:var(--md-error); border-radius:50%;"></div>
-  </button>
+  <button class="navbtn" data-view="settings">Ajustes</button>
 </div>
-
 <div class="content">
   <div class="section" id="calendar">
     <div class="card">
@@ -312,12 +313,17 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 			   </div>
 			</div>
 			
-			<div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; gap:8px;">
-				<div><label style="font-size:10px;">Inicio del Plan</label><input type="date" id="chartStart" style="padding:8px; min-height:0; font-size:12px;" onchange="updateGlobalPlanDates()"></div>
-				<div><label style="font-size:10px;">Fin del Plan</label><input type="date" id="chartEnd" style="padding:8px; min-height:0; font-size:12px;" onchange="updateGlobalPlanDates()"></div>
-				<div id="chartGroupWrap" style="display: flex; flex-direction: column;">
-					<label style="font-size:10px;">Agrupar</label>
-					<select id="chartGroup" style="padding:8px; min-height:0; font-size:12px;" onchange="updateChart()">
+			<div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin-bottom:12px; align-items:end;">
+				<div>
+					<label style="font-size:12px; margin-bottom:4px; display:block; color:var(--md-on-surface-variant);">Periodo de la Gráfica</label>
+					<div class="custom-select-btn" style="padding:10px; min-height:40px; border-radius:8px;" onclick="openDateRangeModal()">
+						<span id="lblChartDates" style="font-weight:600; font-size:13px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">--/-- al --/--</span> 
+						<span style="font-size:14px; color:var(--md-primary);">📅</span>
+					</div>
+				</div>
+				<div id="chartGroupWrap" style="display:flex; flex-direction:column;">
+					<label style="font-size:12px; margin-bottom:4px; display:block; color:var(--md-on-surface-variant);">Agrupar visualización</label>
+					<select id="chartGroup" style="padding:10px; min-height:40px; border-radius:8px; font-size:13px;" onchange="updateChart()">
 						<option value="day">Día</option>
 						<option value="week" selected>Semana</option>
 						<option value="month">Mes</option>
@@ -328,6 +334,7 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 			<div id="chartSwipeArea" style="height: 250px; width:100%; position:relative; touch-action: pan-y;">
 				<canvas id="financeChart"></canvas>
 			</div>
+			<div class="small" style="text-align:center; color:var(--md-primary); margin-top:8px; opacity:0.8;">💡 Toca el botón 📈 o desliza a los lados sobre la gráfica para cambiar.</div>
 		</div>
     </div>
 
@@ -507,12 +514,12 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
       <div class="heading">Ajustes del Sistema</div>
       
       <div class="tabs">
-         <div class="tab active" onclick="switchSubTab('settings', 'rules', this)">⚙️ Reglas</div>
-         <div class="tab" onclick="switchSubTab('settings', 'db', this)">💾 Respaldo</div>
-         <div class="tab" id="tabAboutBtn" onclick="switchSubTab('settings', 'about', this)">ℹ️ Acerca de <span id="aboutUpdateDot" style="display:none; color:var(--md-error); font-size:10px;">🔴</span></div>
+         <div class="tab active" onclick="switchSettingsTab('tab-rules', this)">⚙️ Reglas</div>
+         <div class="tab" onclick="switchSettingsTab('tab-db', this)">💾 Respaldo</div>
+         <div class="tab" id="tabAboutBtn" onclick="switchSettingsTab('tab-about', this)">ℹ️ Acerca de <span id="aboutUpdateDot" style="display:none; color:var(--md-primary); font-size:10px;">🔵</span></div>
       </div>
 
-      <div id="settingsListRules" style="display:block;">
+      <div id="tab-rules" class="tab-content active">
          <div class="small" style="margin-bottom:16px;">Ajusta las variables de tu flujo de caja proyectado.</div>
          <div class="grid grid2">
             <div><label>Inicio del Plan</label><input id="planStart" type="date" required></div>
@@ -539,8 +546,9 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
          <button class="btn primary" style="margin-top:16px;width:100%" onclick="saveSettings()">Guardar reglas</button>
       </div>
 
-      <div id="settingsListDb" style="display:none;">
+      <div id="tab-db" class="tab-content">
          <div class="small" style="margin-bottom:16px; line-height:1.4;">Protege tu información. El texto se guarda en la nube para sincronización rápida, y las imágenes se exportan a un archivo físico por privacidad.</div>
+         
          <div style="background:var(--md-primary-container); padding:16px; border-radius:12px; margin-bottom:12px;">
              <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
                  <div style="font-weight:bold; margin-bottom:4px; font-size:14px; color:var(--md-primary);">☁️ Sincronización Híbrida</div>
@@ -554,19 +562,20 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
                  <button class="btn primary" onclick="restoreFromCloud()" style="background:var(--md-surface); color:var(--md-primary); grid-column:1/-1;">☁️ Recuperar Nube (Solo Texto)</button>
              </div>
          </div>
+
          <div style="background:var(--md-surface-variant); padding:16px; border-radius:12px;">
-                 <div style="font-weight:bold; margin-bottom:4px; font-size:14px; color:var(--md-on-surface);">📂 Restauración Completa</div>
-                 <div class="small" style="margin-bottom:12px;">Restaura texto e imágenes desde tu archivo de respaldo físico (.mnwsn).</div>
-                 <button class="btn" onclick="document.getElementById('importFileSettings').click()" style="width:100%; background:#fff; border:1px solid #ccc;">Buscar Archivo en mi Dispositivo</button>
-                 <input id="importFileSettings" type="file" accept=".mnwsn" style="display:none" onchange="importData(this)">
-             </div>
-      </div> 
+             <div style="font-weight:bold; margin-bottom:4px; font-size:14px; color:var(--md-on-surface);">📂 Restauración Completa</div>
+             <div class="small" style="margin-bottom:12px;">Restaura texto e imágenes desde tu archivo de respaldo físico (.mnwsn).</div>
+             <button class="btn" onclick="document.getElementById('importFileSettings').click()" style="width:100%; background:#fff; border:1px solid #ccc;">Buscar Archivo en mi Dispositivo</button>
+             <input id="importFileSettings" type="file" accept=".mnwsn" style="display:none" onchange="importData(this)">
+         </div>
+      </div>
 	  
-	  <div id="settingsListAbout" style="display:none;">
+      <div id="tab-about" class="tab-content">
           <div style="text-align:center; padding:16px 0;">
              <div style="font-size:48px; margin-bottom:8px;">🚀</div>
              <div class="heading" style="font-size:20px; color:var(--md-primary); margin-bottom:4px;">Monywissen</div>
-             <div class="small" style="margin-bottom:16px;">Versión Instalada: <b id="lblCurrentVersion">1.0.0</b></div>
+             <div class="small" style="margin-bottom:16px;">Versión Instalada: <b id="lblCurrentVersion">V. </b></div>
              
              <div id="updateUIContainer" style="background:var(--md-surface-variant); padding:16px; border-radius:12px; margin-bottom:16px; text-align:left;">
                  </div>
@@ -578,7 +587,9 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
              </div>
          </div>
       </div>
-  
+      
+	</div>
+  </div>
 </div>
 
 <div class="bottom-nav">
@@ -782,7 +793,6 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 <div id="sysToast" style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(100px); background:var(--md-on-surface); color:var(--md-surface); padding:12px 24px; border-radius:24px; z-index:9999; font-size:14px; font-weight:bold; opacity:0; transition:all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(0,0,0,0.3); pointer-events:none; white-space:nowrap; max-width:90vw; overflow:hidden; text-overflow:ellipsis;"></div>
 
 <script>
-
 const STORAGE_KEY='finplan_profiles_v3';
 let app=loadApp(),currentProfile=app.currentProfile,longPressTimer=null,isLongPressing=false,modalType=null,modalIndex=null,plan=[];
 
@@ -2573,238 +2583,19 @@ function getDateInMonth(year,month,day){const d=new Date(year,month,day);if(d.ge
 function getNextDayOfWeek(year,month,dayOfWeek){const d=new Date(year,month,1),currentDay=d.getDay(),daysUntil=(dayOfWeek-currentDay+7)%7;d.setDate(1+daysUntil);return d.toISOString().slice(0,10)}
 
 
-// =========================================================================
-// MOTOR DE ACTUALIZACIONES OTA (OVER-THE-AIR) DESDE GITHUB
-// =========================================================================
-
-const APP_VERSION = document.querySelector('meta[name="app-version"]')?.getAttribute('content') || '1.0.0';
-const GITHUB_REPO = document.querySelector('meta[name="github-repo"]')?.getAttribute('content') || 'lissandroproyectos/monywissen';
-
-window.updateData = {
-    available: false,
-    version: '',
-    downloadUrl: '',
-    localPath: localStorage.getItem('monywissen_ready_apk') || null,
-    bannerShown: false
-};
-
-if(byId('lblCurrentVersion')) byId('lblCurrentVersion').textContent = APP_VERSION;
-
-window.checkForUpdates = async function(manual = false) {
-    if (manual) showToast("Buscando en GitHub...", "⏳");
-    try {
-        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
-        
-        if (!res.ok) {
-            if (manual) showToast(`Error de GitHub: ${res.status}. ¿Es un pre-release?`, "❌");
-            renderSettingsTabAbout();
-            return;
-        }
-        
-        const release = await res.json();
-        
-        // 🌟 LA MAGIA ESTÁ AQUÍ: Leemos 'release.name' en lugar de 'release.tag_name'
-        // Como tu tag es siempre 'vLatest', el número real (1.2.0) viene en el nombre.
-        const latestVersion = release.name.replace(/[^0-9.]/g, ''); 
-        
-        console.log("APP VERSION (Local):", APP_VERSION);
-        console.log("GITHUB NAME (Nube):", release.name, "-> Limpio:", latestVersion);
-
-        if (latestVersion && isNewerVersion(APP_VERSION, latestVersion)) {
-            window.updateData.available = true;
-            window.updateData.version = latestVersion;
-            
-            const apkAsset = release.assets.find(a => a.name.endsWith('.apk'));
-            if (apkAsset) {
-                window.updateData.downloadUrl = apkAsset.browser_download_url;
-                notifyUpdateAvailable();
-                renderSettingsTabAbout();
-                if (manual) showToast(`¡Actualización ${latestVersion} encontrada!`, "🎉");
-            } else {
-                if (manual) showToast("Release encontrado, pero no tiene un archivo .apk adjunto", "⚠️");
-            }
-        } else {
-            if (manual) showToast(`Tu app (v${APP_VERSION}) está al día con GitHub (v${latestVersion})`, "✅");
-            renderSettingsTabAbout();
-        }
-    } catch (e) {
-        if (manual) showToast("Fallo crítico de red o lectura JSON.", "❌");
-        console.error("Error OTA:", e);
-        renderSettingsTabAbout();
-    }
-};
-
-function isNewerVersion(current, latest) {
-    if (current === latest) return false;
-    const c = current.split('.').map(Number);
-    const l = latest.split('.').map(Number);
-    const len = Math.max(c.length, l.length);
-    
-    for (let i = 0; i < len; i++) {
-        const vCurrent = c[i] || 0;
-        const vLatest = l[i] || 0;
-        if (vLatest > vCurrent) return true;
-        if (vLatest < vCurrent) return false;
-    }
-    return false;
-}
-
-function notifyUpdateAvailable() {
-    if(byId('menuUpdateDot')) byId('menuUpdateDot').style.display = 'block';
-    if(byId('drawerUpdateDot')) byId('drawerUpdateDot').style.display = 'block';
-    if(byId('aboutUpdateDot')) byId('aboutUpdateDot').style.display = 'inline';
-    renderDashboard(); // Dispara el banner de 5 segundos
-}
-
-window.renderSettingsTabAbout = function() {
-    const container = byId('updateUIContainer');
-    if (!container) return;
-
-    if (window.updateData.localPath) {
-        container.innerHTML = `
-            <div style="color:#0f9d58; font-weight:bold; margin-bottom:8px;">✅ Actualización ${window.updateData.version} lista</div>
-            <div class="small" style="margin-bottom:12px;">Ya descargaste la nueva versión. Está lista para instalarse.</div>
-            <button class="btn primary" style="width:100%; background:#0f9d58; border-color:#0f9d58;" onclick="installUpdate()">Instalar Ahora</button>
-            <button class="btn danger" style="width:100%; margin-top:8px; border:none; font-size:12px; background:transparent;" onclick="discardUpdate()">Descartar Descarga</button>
-        `;
-    } else if (window.updateData.available) {
-        container.innerHTML = `
-            <div style="color:var(--md-primary); font-weight:bold; margin-bottom:8px;">🚀 Nueva Versión ${window.updateData.version} disponible</div>
-            <button class="btn primary" style="width:100%;" onclick="downloadUpdate()">Descargar Actualización</button>
-        `;
-    } else {
-        container.innerHTML = `
-            <div style="color:var(--md-on-surface-variant); margin-bottom:12px;">Tu aplicación está al día.</div>
-            <button class="btn" style="width:100%;" onclick="checkForUpdates(true)">Buscar Actualizaciones</button>
-        `;
-    }
-};
-
-window.downloadUpdate = async function() {
-    if (!window.Capacitor || !window.Capacitor.Plugins.Filesystem) {
-        return window.open(window.updateData.downloadUrl, '_blank'); // En PC, abre el navegador normal
-    }
-
-    showDialog({
-        title: 'Descargando...',
-        msg: `
-            <div style="text-align:center; margin-bottom:12px; font-size:12px;">No cierres la aplicación durante este proceso.</div>
-            <div class="progress" style="background:var(--md-outline-variant); height:16px; border-radius:8px; overflow:hidden;">
-                <div id="updProgressBar" class="bar" style="width:0%; background:var(--md-primary); height:100%; transition:width 0.2s;"></div>
-            </div>
-            <div id="updProgressText" style="text-align:center; font-weight:bold; margin-top:8px; font-size:14px; color:var(--md-primary);">Iniciando...</div>
-        `,
-        hideCancel: true, confirmText: 'Ocultar al fondo'
-    });
-
-    try {
-        const response = await fetch(window.updateData.downloadUrl);
-        const contentLength = response.headers.get('content-length');
-        const total = parseInt(contentLength, 10);
-        let loaded = 0;
-        
-        const reader = response.body.getReader();
-        let chunks = [];
-        
-        while(true) {
-            const {done, value} = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            loaded += value.length;
-            if (total) {
-                const percent = Math.round((loaded / total) * 100);
-                if(byId('updProgressBar')) byId('updProgressBar').style.width = percent + '%';
-                if(byId('updProgressText')) byId('updProgressText').textContent = percent + '%';
-            } else {
-                if(byId('updProgressText')) byId('updProgressText').textContent = (loaded / (1024*1024)).toFixed(1) + ' MB...';
-            }
-        }
-        
-        if(byId('updProgressText')) byId('updProgressText').textContent = "Preparando archivo...";
-        
-        // Empaquetar y convertir a Base64
-        let position = 0;
-        let combined = new Uint8Array(loaded);
-        for(let chunk of chunks) { combined.set(chunk, position); position += chunk.length; }
-        const base64 = await new Promise((res, rej) => {
-            const r = new FileReader();
-            r.onload = () => res(r.result.split(',')[1]);
-            r.onerror = rej;
-            r.readAsDataURL(new Blob([combined]));
-        });
-
-        const { Filesystem } = window.Capacitor.Plugins;
-        const writeRes = await Filesystem.writeFile({
-            path: `Monywissen_v${window.updateData.version}.apk`,
-            data: base64,
-            directory: 'CACHE'
-        });
-
-        window.updateData.localPath = writeRes.uri;
-        localStorage.setItem('monywissen_ready_apk', writeRes.uri);
-        closeDialog();
-        renderSettingsTabAbout();
-
-        showDialog({
-            title: '¡Descarga Exitosa! 🎉',
-            msg: 'La actualización se descargó correctamente. ¿Quieres instalarla en este momento?',
-            cancelText: 'Más tarde', confirmText: 'Instalar Ahora',
-            onConfirm: () => installUpdate()
-        });
-
-    } catch (e) {
-        closeDialog();
-        showToast('Error en la descarga. Comprueba tu internet.', '❌');
-    }
-};
-
-window.installUpdate = async function() {
-    if (!window.updateData.localPath) return;
-    try {
-        const { FileOpener } = window.Capacitor.Plugins;
-        await FileOpener.open({
-            filePath: window.updateData.localPath,
-            contentType: 'application/vnd.android.package-archive'
-        });
-        // Una vez ejecutado, borramos el flag para que no estorbe (Android se encarga del resto)
-        discardUpdate(); 
-    } catch (e) {
-        showToast('No se pudo abrir el instalador automáticamente.', '❌');
-    }
-};
-
-window.discardUpdate = function() {
-    localStorage.removeItem('monywissen_ready_apk');
-    window.updateData.localPath = null;
-    renderSettingsTabAbout();
-};
-
-// Auto-chequeo silente al abrir la aplicación
-setTimeout(() => checkForUpdates(false), 3000);
-
-
 // --- NUEVO GESTOR DE SUB-PESTAÑAS ---
 window.switchSubTab = function(module, state, el) {
     const parent = el.parentElement;
     parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
     
-    // 1. Evalúa el módulo de Gastos
     if (module === 'expense') {
         byId('expenseListActive').style.display = state === 'active' ? 'block' : 'none';
         byId('expenseListCompleted').style.display = state === 'completed' ? 'block' : 'none';
-    } 
-    // 2. Evalúa el módulo de Deudas de forma específica
-    else if (module === 'debt') {
+    } else {
         byId('debtListActive').style.display = state === 'active' ? 'block' : 'none';
         byId('debtListCompleted').style.display = state === 'completed' ? 'block' : 'none';
         if(byId('debtListTypes')) byId('debtListTypes').style.display = state === 'types' ? 'block' : 'none';
-    }
-    // 3. Evalúa el nuevo módulo de Ajustes sin interferir con los demás
-    else if (module === 'settings') {
-        byId('settingsListRules').style.display = state === 'rules' ? 'block' : 'none';
-        byId('settingsListDb').style.display = state === 'db' ? 'block' : 'none';
-        byId('settingsListAbout').style.display = state === 'about' ? 'block' : 'none';
     }
 };
 
@@ -3525,20 +3316,16 @@ function render() {
   renderTransactions();
   renderDebts();
   renderCalendar();
-  renderListView(); 
+  renderListView(); // <-- ESTA ES LA MAGIA QUE ARREGLA EL BUG DE ACTUALIZACIÓN EN TIEMPO REAL
   renderDashboard();
   renderSavings();
   renderSettings();
   if (document.querySelector('.section.active') && document.querySelector('.section.active').id === 'shared') {
-      if(byId('sharedDetailView').style.display !== 'block') {
-          renderSharedAccounts();
-      }
-  }
-  
-  // SOLUCIÓN: Forzar el diseño custom en los selectores después de cada render
-  setTimeout(initCustomSelects, 50);
+		if(byId('sharedDetailView').style.display !== 'block') {
+			renderSharedAccounts();
+		}
+	}
 }
-
 function syncForm() {
 renderSettings();
 renderSavings();
@@ -3553,6 +3340,12 @@ byId('planEnd').value = d.toISOString().slice(0, 10);
 }
 
 function initUI() {
+  // FORZAR PANTALLA COMPLETA (Status Bar Transparente)
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar) {
+      window.Capacitor.Plugins.StatusBar.setOverlaysWebView({ overlay: true }).catch(function(){});
+      window.Capacitor.Plugins.StatusBar.setStyle({ style: 'LIGHT' }).catch(function(){});
+  }
+
   initProfiles();
   setTodayIfEmpty();
   syncForm();
@@ -3593,10 +3386,6 @@ function initUI() {
           mc.on("swiperight", function() { cycleChart(-1); });
       }
   }, 1000);
-  
-  // Sincronizar el texto de la pestaña Acerca de
-  if(byId('lblAppVersionDisplay')) byId('lblAppVersionDisplay').textContent = `Versión ${APP_VERSION}`;
-  
 }
 function closeDrawerOnSelect() {
   if (byId('drawer').classList.contains('open')) toggleDrawer();
@@ -3990,8 +3779,8 @@ function updateChart() {
     }
     
     const mode = window.currentChartViewIndex; 
-    const startD = byId('chartStart').value || p.settings.planStart;
-    const endD = byId('chartEnd').value || p.settings.planEnd;
+    const startD = p.settings.planStart;
+    const endD = p.settings.planEnd;
     const groupBy = byId('chartGroup') ? byId('chartGroup').value : 'week';
     
     // Actualizar la vista del botón superior
@@ -5568,6 +5357,7 @@ window.requestP2PLoan = function() {
     });
 };
 
+
 // =========================================================================
 // ACTUALIZACIÓN DE FECHAS GLOBALES DESDE EL DASHBOARD
 // =========================================================================
@@ -5577,6 +5367,8 @@ window.updateGlobalPlanDates = function() {
     const e = byId('chartEnd').value;
     
     if (s && e && s <= e) {
+        if(byId('lblChartStart')) byId('lblChartStart').textContent = formatDate(s);
+        if(byId('lblChartEnd')) byId('lblChartEnd').textContent = formatDate(e);
         // Actualizamos las reglas base
         p.settings.planStart = s;
         p.settings.planEnd = e;
@@ -5698,6 +5490,43 @@ function renderCalendar() {
   byId('calendarWrap').innerHTML = html;
 }
 
+window.tempRangeStart = '';
+window.tempRangeEnd = '';
+
+window.openNativeDatePicker = async function(target) {
+    let currentDate = target === 'start' ? window.tempRangeStart : window.tempRangeEnd;
+
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.DatetimePicker) {
+        try {
+            const result = await window.Capacitor.Plugins.DatetimePicker.present({
+                mode: 'date',
+                value: currentDate + 'T12:00:00.000Z',
+                theme: 'light'
+            });
+            if (result && result.value) {
+                const selectedDate = result.value.split('T')[0];
+                if (target === 'start') {
+                    window.tempRangeStart = selectedDate;
+                    if (byId('lblModStart')) byId('lblModStart').textContent = formatDate(selectedDate);
+                } else {
+                    window.tempRangeEnd = selectedDate;
+                    if (byId('lblModEnd')) byId('lblModEnd').textContent = formatDate(selectedDate);
+                }
+            }
+        } catch(e) { console.log("Selector cerrado"); }
+    } else {
+        const fallbackStr = prompt("Ingresa la fecha (YYYY-MM-DD):", currentDate);
+        if (fallbackStr && fallbackStr.length === 10) {
+            if (target === 'start') {
+                window.tempRangeStart = fallbackStr;
+                if (byId('lblModStart')) byId('lblModStart').textContent = formatDate(fallbackStr);
+            } else {
+                window.tempRangeEnd = fallbackStr;
+                if (byId('lblModEnd')) byId('lblModEnd').textContent = formatDate(fallbackStr);
+            }
+        }
+    }
+};
 function renderListView() {
     const txt = (byId('filterText').value || '').toLowerCase();
     
@@ -5938,6 +5767,59 @@ window.actionP2P = function(loanId, action) {
     }
 };
 
+// =========================================================================
+// MOTOR NATIVO DE FECHAS (CAPAWESOME DATETIME PICKER)
+// =========================================================================
+
+
+window.openDateRangeModal = function() {
+    const p = prof();
+    window.tempRangeStart = p.settings.planStart;
+    window.tempRangeEnd = p.settings.planEnd;
+
+    const html = `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; text-align:left;">
+            <div style="position:relative;">
+                <label style="font-size:12px; margin-bottom:4px; display:block; color:var(--md-on-surface-variant);">Inicio del Plan</label>
+                <div class="custom-select-btn" style="padding:10px; min-height:40px; border-radius:8px;" onclick="openNativeDatePicker('start')">
+                    <span id="lblModStart" style="font-weight:600;">${formatDate(window.tempRangeStart)}</span>
+                    <span style="color:var(--md-primary);">📅</span>
+                </div>
+                <input type="date" id="modChartStart" value="${window.tempRangeStart}" style="visibility:hidden; position:absolute; bottom:0; left:0; width:0; height:0; border:none; padding:0;" onchange="window.tempRangeStart=this.value; byId('lblModStart').textContent=formatDate(this.value)">
+            </div>
+            <div style="position:relative;">
+                <label style="font-size:12px; margin-bottom:4px; display:block; color:var(--md-on-surface-variant);">Fin del Plan</label>
+                <div class="custom-select-btn" style="padding:10px; min-height:40px; border-radius:8px;" onclick="openNativeDatePicker('end')">
+                    <span id="lblModEnd" style="font-weight:600;">${formatDate(window.tempRangeEnd)}</span>
+                    <span style="color:var(--md-primary);">📅</span>
+                </div>
+                <input type="date" id="modChartEnd" value="${window.tempRangeEnd}" style="visibility:hidden; position:absolute; bottom:0; left:0; width:0; height:0; border:none; padding:0;" onchange="window.tempRangeEnd=this.value; byId('lblModEnd').textContent=formatDate(this.value)">
+            </div>
+        </div>
+    `;
+    
+    showDialog({
+        title: 'Rango de Proyección',
+        msg: html,
+        hideCancel: false,
+        confirmText: 'Aplicar',
+        onConfirm: () => {
+            if (window.tempRangeStart <= window.tempRangeEnd) {
+                p.settings.planStart = window.tempRangeStart;
+                p.settings.planEnd = window.tempRangeEnd;
+                
+                if(byId('planStart')) byId('planStart').value = window.tempRangeStart;
+                if(byId('planEnd')) byId('planEnd').value = window.tempRangeEnd;
+                
+                saveApp();
+                runPlan();
+                showToast("Fechas actualizadas con éxito", "✅");
+            } else {
+                showToast("El inicio no puede ser mayor a la fecha de fin", "⚠️");
+            }
+        }
+    });
+};
 
 function renderDashboard() {
   const p = prof();
@@ -5965,29 +5847,15 @@ function renderDashboard() {
   if(byId('kpiBalance')) byId('kpiBalance').textContent = fmt(proj);
   if(byId('kpiDebt')) byId('kpiDebt').textContent = fmt(p.debts.reduce((s, d) => s + getRemainingSpecialDebt(d), 0));
   
-  // ASEGURAR QUE EL DASHBOARD SIEMPRE MUESTRE LAS FECHAS REALES DEL PLAN
-  if(byId('chartStart')) byId('chartStart').value = p.settings.planStart;
-  if(byId('chartEnd')) byId('chartEnd').value = p.settings.planEnd;
+  // ACTUALIZAR ETIQUETA DE FECHAS EN EL DASHBOARD
+  if (byId('lblChartDates')) {
+      // Mostramos las fechas en formato corto (Ej. 29/06 al 31/12)
+      byId('lblChartDates').textContent = formatDate(p.settings.planStart).substring(0,5) + ' al ' + formatDate(p.settings.planEnd).substring(0,5);
+  }
   setTimeout(updateChart, 100);
 
   let alertHtml = '';
-  
-  // 🌟 LÓGICA DEL BANNER DE 5 SEGUNDOS
-  if (window.updateData.available && !window.updateData.bannerShown) {
-      alertHtml = `<div onclick="nav('settings'); switchSubTab('settings', 'about', byId('tabAboutBtn'))" style="cursor:pointer; background:#e8f0fe; color:#1a73e8; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #1a73e8; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
-          <span style="font-size:24px;">🚀</span>
-          <div style="line-height:1.2;">
-              <b style="font-size:13px; text-transform:uppercase;">Nueva Versión: ${window.updateData.version}</b><br>
-              <u style="font-weight:bold;">Toca aquí para actualizar ➔</u>
-          </div>
-      </div>`;
-      
-      setTimeout(() => {
-          window.updateData.bannerShown = true;
-          renderDashboard(); // Se re-dibuja devolviendo el estatus normal (Flujo Saludable)
-      }, 5000);
-      
-  } else if (deficitAlert) {
+  if (deficitAlert) {
       alertHtml = `<div onclick="jumpToCalendar('${deficitAlert.date}')" style="cursor:pointer; background:#fce8e6; color:#d93025; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #d93025; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
           <span style="font-size:24px;">🚨</span>
           <div style="line-height:1.2;">
@@ -6133,6 +6001,245 @@ window.addParticipantManual = function() {
 
     setTimeout(() => { if(byId('newPartName')) byId('newPartName').focus(); }, 100);
 };
+
+// =========================================================================
+// MOTOR DE ACTUALIZACIONES OTA (OVER-THE-AIR) Y BANNER DEL DASHBOARD
+// =========================================================================
+
+const APP_VERSION = document.querySelector('meta[name="app-version"]')?.getAttribute('content') || '1.0.0';
+const GITHUB_REPO = document.querySelector('meta[name="github-repo"]')?.getAttribute('content') || 'lissandroproyectos/monywissen';
+
+window.updateData = {
+    available: false,
+    version: '',
+    downloadUrl: '',
+    changelog: '',
+    localPath: localStorage.getItem('monywissen_ready_apk') || null,
+    bannerShown: false
+};
+
+if(byId('lblCurrentVersion')) byId('lblCurrentVersion').textContent = APP_VERSION;
+
+// Interceptamos la función original renderDashboard para inyectar el Banner sin romper lo viejo
+const originalRenderDashboard = window.renderDashboard;
+window.renderDashboard = function() {
+    originalRenderDashboard(); // Dibuja la pantalla normal
+    
+    // Si hay actualización, pisamos el topAlertBadge con nuestro Banner Azul
+    if (window.updateData.available && !window.updateData.bannerShown) {
+        const topBadge = byId('topAlertBadge');
+        if(topBadge) {
+            topBadge.innerHTML = `<div onclick="nav('settings'); switchSettingsTab('tab-about', byId('tabAboutBtn'))" style="cursor:pointer; background:#e8f0fe; color:#1a73e8; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #1a73e8; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
+                <span style="font-size:24px;">🚀</span>
+                <div style="line-height:1.2;">
+                    <b style="font-size:13px; text-transform:uppercase;">Nueva Versión: ${window.updateData.version}</b><br>
+                    <u style="font-weight:bold;">Toca aquí para actualizar ➔</u>
+                </div>
+            </div>`;
+            topBadge.style.display = 'block';
+            
+            setTimeout(() => {
+                window.updateData.bannerShown = true;
+                renderDashboard(); // Re-dibuja para restaurar el estado de salud normal
+            }, 5000);
+        }
+    }
+};
+
+window.checkForUpdates = async function(manual = false) {
+    if (manual) showToast("Buscando en GitHub...", "⏳");
+    try {
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+        
+        if (!res.ok) {
+            if (manual) showToast(`Error de GitHub: ${res.status}`, "❌");
+            renderSettingsTabAbout(); return;
+        }
+        
+        const release = await res.json();
+        const latestVersion = release.name.replace(/[^0-9.]/g, ''); 
+
+        if (latestVersion && isNewerVersion(APP_VERSION, latestVersion)) {
+            window.updateData.available = true;
+            window.updateData.version = latestVersion;
+            window.updateData.changelog = release.body || 'Mejoras de rendimiento y estabilidad.';
+            
+            const apkAsset = release.assets.find(a => a.name.endsWith('.apk'));
+            if (apkAsset) {
+                window.updateData.downloadUrl = apkAsset.browser_download_url;
+                notifyUpdateAvailable();
+                renderSettingsTabAbout();
+                if (manual) showToast(`¡Nueva versión ${latestVersion} encontrada!`, "🎉");
+            } else {
+                if (manual) showToast("Release encontrado, pero sin archivo .apk", "⚠️");
+            }
+        } else {
+            if (manual) showToast(`Tu app (v${APP_VERSION}) está al día.`, "✅");
+            renderSettingsTabAbout();
+        }
+    } catch (e) {
+        if (manual) showToast("Error de conexión.", "❌");
+        renderSettingsTabAbout();
+    }
+};
+
+function isNewerVersion(current, latest) {
+    if (current === latest) return false;
+    const c = current.split('.').map(Number);
+    const l = latest.split('.').map(Number);
+    const len = Math.max(c.length, l.length);
+    for (let i = 0; i < len; i++) {
+        const vCurrent = c[i] || 0;
+        const vLatest = l[i] || 0;
+        if (vLatest > vCurrent) return true;
+        if (vLatest < vCurrent) return false;
+    }
+    return false;
+}
+
+function notifyUpdateAvailable() {
+    if(byId('menuUpdateDot')) byId('menuUpdateDot').style.display = 'block';
+    if(byId('drawerUpdateDot')) byId('drawerUpdateDot').style.display = 'block';
+    if(byId('aboutUpdateDot')) byId('aboutUpdateDot').style.display = 'inline';
+    renderDashboard(); 
+}
+
+window.renderSettingsTabAbout = function() {
+    const container = byId('updateUIContainer');
+    if (!container) return;
+
+    let changelogHtml = '';
+    if (window.updateData.changelog) {
+        let formattedLog = window.updateData.changelog.replace(/\r\n/g, '<br>').replace(/\n/g, '<br>');
+        changelogHtml = `
+            <div style="background:var(--md-surface); border:1px solid var(--md-outline-variant); padding:12px; border-radius:8px; margin:12px 0; font-size:12px; color:var(--md-on-surface-variant); max-height:150px; overflow-y:auto; line-height:1.4;">
+                <div style="font-weight:bold; color:var(--md-on-surface); margin-bottom:6px; font-size:13px;">✨ Novedades en esta versión:</div>
+                ${formattedLog}
+            </div>
+        `;
+    }
+
+    if (window.updateData.localPath) {
+        container.innerHTML = `
+            <div style="color:#0f9d58; font-weight:bold; margin-bottom:4px;">✅ Actualización ${window.updateData.version} lista</div>
+            <div class="small">Ya descargaste la nueva versión. Está lista para instalarse.</div>
+            ${changelogHtml}
+            <button class="btn primary" style="width:100%; background:#0f9d58; border-color:#0f9d58;" onclick="installUpdate()">Instalar Ahora</button>
+            <button class="btn danger" style="width:100%; margin-top:8px; border:none; font-size:12px; background:transparent;" onclick="discardUpdate()">Descartar Descarga</button>
+        `;
+    } else if (window.updateData.available) {
+        container.innerHTML = `
+            <div style="color:var(--md-primary); font-weight:bold; margin-bottom:4px;">🚀 Nueva Versión ${window.updateData.version} disponible</div>
+            ${changelogHtml}
+            <button class="btn primary" style="width:100%;" onclick="downloadUpdate()">Descargar Actualización</button>
+        `;
+    } else {
+        container.innerHTML = `
+            <div style="color:var(--md-on-surface-variant); margin-bottom:12px;">Tu aplicación está al día.</div>
+            <button class="btn" style="width:100%;" onclick="checkForUpdates(true)">Buscar Actualizaciones</button>
+        `;
+    }
+};
+
+window.downloadUpdate = async function() {
+    if (!window.Capacitor || !window.Capacitor.Plugins.Filesystem) {
+        return window.open(window.updateData.downloadUrl, '_blank'); 
+    }
+
+    showDialog({
+        title: 'Descargando...',
+        msg: `
+            <div style="text-align:center; margin-bottom:12px; font-size:12px;">No cierres la aplicación durante este proceso.</div>
+            <div class="progress" style="background:var(--md-outline-variant); height:16px; border-radius:8px; overflow:hidden;">
+                <div id="updProgressBar" class="bar" style="width:0%; background:var(--md-primary); height:100%; transition:width 0.2s;"></div>
+            </div>
+            <div id="updProgressText" style="text-align:center; font-weight:bold; margin-top:8px; font-size:14px; color:var(--md-primary);">Iniciando...</div>
+        `,
+        hideCancel: true, confirmText: 'Ocultar al fondo'
+    });
+
+    try {
+        const response = await fetch(window.updateData.downloadUrl);
+        const contentLength = response.headers.get('content-length');
+        const total = parseInt(contentLength, 10);
+        let loaded = 0;
+        
+        const reader = response.body.getReader();
+        let chunks = [];
+        
+        while(true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            loaded += value.length;
+            if (total) {
+                const percent = Math.round((loaded / total) * 100);
+                if(byId('updProgressBar')) byId('updProgressBar').style.width = percent + '%';
+                if(byId('updProgressText')) byId('updProgressText').textContent = percent + '%';
+            } else {
+                if(byId('updProgressText')) byId('updProgressText').textContent = (loaded / (1024*1024)).toFixed(1) + ' MB...';
+            }
+        }
+        
+        if(byId('updProgressText')) byId('updProgressText').textContent = "Preparando archivo...";
+        
+        let position = 0;
+        let combined = new Uint8Array(loaded);
+        for(let chunk of chunks) { combined.set(chunk, position); position += chunk.length; }
+        const base64 = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result.split(',')[1]);
+            r.onerror = rej;
+            r.readAsDataURL(new Blob([combined]));
+        });
+
+        const { Filesystem } = window.Capacitor.Plugins;
+        const writeRes = await Filesystem.writeFile({
+            path: `Monywissen_v${window.updateData.version}.apk`,
+            data: base64,
+            directory: 'CACHE'
+        });
+
+        window.updateData.localPath = writeRes.uri;
+        localStorage.setItem('monywissen_ready_apk', writeRes.uri);
+        closeDialog();
+        renderSettingsTabAbout();
+
+        showDialog({
+            title: '¡Descarga Exitosa! 🎉',
+            msg: 'La actualización se descargó correctamente. ¿Quieres instalarla en este momento?',
+            cancelText: 'Más tarde', confirmText: 'Instalar Ahora',
+            onConfirm: () => installUpdate()
+        });
+
+    } catch (e) {
+        closeDialog();
+        showToast('Error en la descarga. Comprueba tu internet.', '❌');
+    }
+};
+
+window.installUpdate = async function() {
+    if (!window.updateData.localPath) return;
+    try {
+        const { FileOpener } = window.Capacitor.Plugins;
+        await FileOpener.open({
+            filePath: window.updateData.localPath,
+            contentType: 'application/vnd.android.package-archive'
+        });
+        discardUpdate(); 
+    } catch (e) {
+        showToast('No se pudo abrir el instalador automáticamente.', '❌');
+    }
+};
+
+window.discardUpdate = function() {
+    localStorage.removeItem('monywissen_ready_apk');
+    window.updateData.localPath = null;
+    renderSettingsTabAbout();
+};
+
+// Auto-chequeo silente 3 segundos después de abrir la app
+setTimeout(() => checkForUpdates(false), 3000);
 
 initUI();
 
