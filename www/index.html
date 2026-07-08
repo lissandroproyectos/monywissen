@@ -7,9 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.2.90" />
+<meta name="app-version" content="1.2.91" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
-<meta name="changelog" content="🚀 Novedades de esta versión:<br>- Sistema inteligente OTA de actualizaciones.<br>- Motor de descarga directa y barra de progreso.<br>- Corregidos los colores a azul corporativo." />
+<meta name="changelog" content="🚀 Novedades de esta versión:<br>- Correccion de actualiacion.<br>- Motor de descarga directa y barra de progreso.<br>- Corregidos las notificaciones de actualizaciones." />
 
 <title>Monywissen</title>
 <style>
@@ -224,7 +224,10 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
 
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:12px">
-    <button class="btn icon" onclick="toggleDrawer()"><svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+    <button class="btn icon" style="position:relative;" onclick="toggleDrawer()">
+       <svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+       <div id="menuUpdateDot" style="display:none; position:absolute; top:8px; right:8px; width:10px; height:10px; background:var(--md-primary); border-radius:50%; border:2px solid var(--md-surface);"></div>
+    </button>
     <div class="title" style="display:flex; align-items:center; gap:8px;">
         <span id="topTitle">Dashboard</span>
         <div id="topAlertBadge" style="display:none; transition: opacity 0.3s;"></div>
@@ -256,7 +259,9 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
   <button class="navbtn" data-view="savings">Ahorros</button>
   <button class="navbtn" data-view="transactions">Transaccion</button>
   <button class="navbtn" data-view="shared">MonyShared</button>
-  <button class="navbtn" data-view="settings">Ajustes</button>
+  <button class="navbtn" data-view="settings" style="position:relative; display:flex; justify-content:space-between; align-items:center;">
+      Ajustes <div id="drawerUpdateDot" style="display:none; width:8px; height:8px; background:var(--md-primary); border-radius:50%;"></div>
+  </button>
 </div>
 <div class="content">
   <div class="section" id="calendar">
