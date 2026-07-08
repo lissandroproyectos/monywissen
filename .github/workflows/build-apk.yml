@@ -100,25 +100,25 @@ jobs:
             --key-pass pass:"monywissen" \
             android/app/build/outputs/apk/release/app-release-unsigned.apk
           
-          mv android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/Monywissen-Signed.apk
+          mv android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/Monywissen.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Monywissen-Produccion
-          path: android/app/build/outputs/apk/release/Monywissen-Signed.apk
+          path: android/app/build/outputs/apk/release/Monywissen.apk
           retention-days: 7
 
       - name: Extraer versión del HTML
         id: get_version
         run: |
-          VERSION=$(grep -oP '(?<=content=")[^"]*(?=")' <<< "$(grep 'meta name="app-version"' index.html)")
+          VERSION=$(grep -oP '(?<=content=")[^"]*(?=")' <<< "$(grep 'meta name="app-version"' www/index.html)")
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Crear o Actualizar Release en GitHub
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "android/app/build/outputs/apk/release/Monywissen-Signed.apk"
+          artifacts: "android/app/build/outputs/apk/release/Monywissen.apk"
           tag: "vLatest"
           name: ${{ env.APP_VERSION }} # Aquí usamos la variable extraída
           body: "Actualización automática de Monywissen."

@@ -5579,14 +5579,13 @@ async function checkForGitHubUpdates(isManualClick = false) {
     if (isManualClick) showToast("Buscando actualizaciones... 🔍", "⏳");
     
     try {
-        // Leer directamente desde el HTML
         const repo = document.querySelector('meta[name="github-repo"]').getAttribute('content');
         const currentVersion = document.querySelector('meta[name="app-version"]').getAttribute('content');
         
         const response = await fetch(`https://api.github.com/repos/${repo}/releases/tags/vLatest`);
         
         if (!response.ok) {
-            if (isManualClick) showDialog({ title: 'Monywissen al Día', msg: 'No se encontraron nuevas versiones.', hideCancel: true });
+            if (isManualClick) showDialog({ title: 'Monywissen al Día', msg: 'No hay versiones disponibles.', hideCancel: true });
             return;
         }
         
@@ -5594,11 +5593,31 @@ async function checkForGitHubUpdates(isManualClick = false) {
         const apkAsset = release.assets.find(a => a.name.endsWith('.apk'));
         const serverVersion = release.name; 
 
+        // 🔥 LÓGICA DE AVISO 🔥
         if (apkAsset && serverVersion !== currentVersion) {
-            // ... (aquí va tu lógica de mostrar el aviso de actualización)
+            
+            // 1. Mostrar la notificación sutil en el dashboard (topAlertBadge)
+            const topBadge = byId('topAlertBadge');
+            if (topBadge && !isManualClick) {
+                topBadge.style.display = 'block';
+                topBadge.innerHTML = `
+                    <div onclick="promptUpdateInstallation('${apkAsset.browser_download_url}', '${serverVersion}')" 
+                         style="cursor:pointer; background:#e8f0fe; color:#1a73e8; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #1a73e8; display:flex; align-items:center; gap:8px;">
+                        <span>🚀</span>
+                        <div><b>Nueva Versión: ${serverVersion}</b><br>Toca aquí para actualizar ➔</div>
+                    </div>`;
+            }
+
+            // 2. Si el usuario le dio al botón en Ajustes, mostramos el diálogo directo
+            if (isManualClick) {
+                promptUpdateInstallation(apkAsset.browser_download_url, serverVersion);
+            }
+        } else {
+            if (isManualClick) showDialog({ title: 'Monywissen al Día', msg: `Ya tienes la versión más reciente (${currentVersion}).`, hideCancel: true });
         }
     } catch (e) {
         console.log("Error buscando actualizaciones", e);
+        if (isManualClick) showToast("Error de conexión.", "❌");
     }
 }
 
