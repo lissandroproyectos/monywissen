@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.2.93" />
+<meta name="app-version" content="1.2.94" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="- Correccion de actualiaciones.<br>- Motor de descarga directa y barra de progreso." />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -6062,55 +6062,57 @@ window.renderSettingsTabAbout = function() {
 };
 
 window.downloadUpdate = async function() {
-    if (!window.Capacitor || !window.Capacitor.Plugins.Filesystem) return window.open(window.updateData.downloadUrl, '_blank'); 
+    // Si estamos en PC/Web, simplemente abre la pestaña de descarga normal
+    if (!window.Capacitor || !window.Capacitor.isNativePlatform()) {
+        return window.open(window.updateData.downloadUrl, '_blank'); 
+    }
     
-    // Activa la bandera de descarga y repinta el botón (lo bloquea e inicia la animación)
+    // Activa la bandera de descarga y repinta el botón a modo "Descargando..."
     window.updateData.isDownloading = true;
     window.updateData.downloadProgress = 0;
     renderSettingsTabAbout(); 
 
+    let progressListener = null;
+
     try {
-        const response = await fetch(window.updateData.downloadUrl, { cache: 'no-store' });
-        const total = parseInt(response.headers.get('content-length'), 10);
-        let loaded = 0; const reader = response.body.getReader(); let chunks = [];
+        const { CapacitorHttp } = window.Capacitor.Plugins;
         
-        while(true) {
-            const {done, value} = await reader.read(); if (done) break;
-            chunks.push(value); loaded += value.length;
-            if (total) {
-                const percent = Math.round((loaded / total) * 100);
+        // 1. Conectamos el escuchador nativo para mover la barra verde suavemente
+        progressListener = await window.Capacitor.addListener('httpDownloadProgress', (progress) => {
+            if (progress.url === window.updateData.downloadUrl && progress.contentLength > 0) {
+                const percent = Math.round((progress.bytes / progress.contentLength) * 100);
                 window.updateData.downloadProgress = percent;
                 
-                // Actualizamos directamente la barra sin repintar toda la pantalla para que sea ultra suave
                 const progressEl = byId('btnDownloadProgress');
                 const textEl = byId('btnDownloadText');
                 if (progressEl) progressEl.style.width = percent + '%';
                 if (textEl) textEl.textContent = `Descargando... ${percent}%`;
             }
-        }
-        
-        const textEl = byId('btnDownloadText');
-        if(textEl) textEl.textContent = "Preparando archivo...";
-        
-        let position = 0; let combined = new Uint8Array(loaded);
-        for(let chunk of chunks) { combined.set(chunk, position); position += chunk.length; }
-        const base64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(new Blob([combined])); });
+        });
 
-        const { Filesystem } = window.Capacitor.Plugins;
-        const writeRes = await Filesystem.writeFile({ path: `Monywissen_v${window.updateData.version}.apk`, data: base64, directory: 'CACHE' });
+        // 2. Ejecutamos la descarga nativa (Pasa por encima del bloqueo de GitHub)
+        const response = await CapacitorHttp.downloadFile({
+            url: window.updateData.downloadUrl,
+            filePath: `Monywissen_v${window.updateData.version}.apk`,
+            fileDirectory: 'CACHE',
+            progress: true // Esto activa el rastreo en vivo
+        });
 
-        // Terminó el proceso silencioso, cambiamos el estado y activamos el botón Instalar
-        window.updateData.localPath = writeRes.uri; 
-        localStorage.setItem('monywissen_ready_apk', writeRes.uri);
+        // 3. Proceso terminado con éxito
+        if (progressListener) progressListener.remove(); // Limpiamos la memoria
+        
+        window.updateData.localPath = response.path; 
+        localStorage.setItem('monywissen_ready_apk', response.path);
         window.updateData.isDownloading = false;
         
         showToast("¡Actualización lista para instalar!", "✅");
-        renderSettingsTabAbout(); // Se redibuja para mostrar el botón de "Instalar Ahora"
+        renderSettingsTabAbout(); // Se redibuja para mostrar el botón "Instalar Ahora"
         
     } catch (e) { 
+        if (progressListener) progressListener.remove();
         window.updateData.isDownloading = false;
-        showToast('Error en la descarga. Comprueba tu internet.', '❌'); 
-        renderSettingsTabAbout(); // Se redibuja devolviendo el botón a su estado normal
+        showToast('Error de red. Intenta de nuevo.', '❌'); 
+        renderSettingsTabAbout(); // Devuelve el botón a su estado normal si falla
     }
 };
 
