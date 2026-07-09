@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.2.100" />
+<meta name="app-version" content="1.3.1" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="- Correccion de actualizaciones.<br>- Motor de descarga directa y barra de progreso.<br>-improve updates" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -5455,8 +5455,15 @@ function renderCalendar() {
        else if (e.type === 'savings') color = '#00897b';
        else if (e.type === 'debt' || e.type === 'debt_cut') color = e.ref.effectiveColor || '#d93025'; 
        
+       let finalLabel = e.label;
+       // Si ya se pagó pero en una fecha distinta a la original, agregamos (Plan: DD/MM)
+       if (e.done && e.originalDate !== e.date) {
+           const shortDate = e.originalDate.split('-')[2] + '/' + e.originalDate.split('-')[1];
+           finalLabel += ` (Plan: ${shortDate})`;
+       }
+       
        const prefix = e.isDelayed ? 'pp - ' : '';
-       html += `<div class="evt" style="color:${color}; border-color:${color}30; background:${color}10; cursor:pointer;" onclick="event.stopPropagation(); showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">${prefix}${e.label}</div>`;
+       html += `<div class="evt" style="color:${color}; border-color:${color}30; background:${color}10; cursor:pointer;" onclick="event.stopPropagation(); showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">${prefix}${finalLabel}</div>`;
     });
 
     if (events.length > 3) html += `<div style="text-align:right; font-size:10px; font-weight:900; color:var(--md-on-surface-variant); margin-top:2px;">+${events.length - 3}</div>`;
@@ -5487,6 +5494,7 @@ function renderCalendar() {
 }
 
 function renderListView() {
+    const todayStr = today(); // 🌟 LÍNEA REPARADA: Declaramos qué día es hoy
     const txt = (byId('filterText').value || '').toLowerCase();
     
     let filtered = plan.filter(e => {
@@ -5538,7 +5546,8 @@ function renderListView() {
         return;
     }
     
-    let html = '<table class="table" style="font-size:12px;"><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th style="text-align:right">Saldo Restante</th></tr></thead><tbody>';
+    // Agregamos las dos columnas de fechas
+    let html = '<table class="table" style="font-size:12px;"><thead><tr><th>Plan</th><th>Pago</th><th>Concepto</th><th>Monto</th><th style="text-align:right">Saldo Restante</th></tr></thead><tbody>';
     
     filtered.forEach((e, idx) => {
          let color = '#49454f';
@@ -5551,8 +5560,15 @@ function renderListView() {
          
          const prefix = e.isDelayed ? 'pp - ' : '';
          
+         // Lógica para determinar qué mostrar en la columna "Pago"
+         let estadoPago = '⏳ Pend.';
+         if (e.done) estadoPago = `<span style="color:#0f9d58; font-weight:bold;">${formatDate(e.date)}</span>`;
+         else if (e.isDelayed) estadoPago = `<span style="color:#9c27b0; font-size:10px;">Proy: ${formatDate(e.date).substring(0,5)}</span>`;
+         else if (e.originalDate < todayStr) estadoPago = `<span style="color:#e8710a; font-size:10px; font-weight:bold;">⚠️ Atrasado</span>`;
+         
          html += `<tr style="cursor:pointer;" onclick="showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">
-            <td style="white-space:nowrap">${formatDate(e.date)}</td>
+            <td style="white-space:nowrap">${formatDate(e.originalDate)}</td>
+            <td style="white-space:nowrap">${estadoPago}</td>
             <td><div style="color:${color}; font-weight:bold;">${prefix}${e.label}</div></td>
             <td style="font-weight:bold; color:${e.amt>0?'#0f9d58':(e.criticalDelay?'#d93025':'var(--md-on-surface)')}">${fmt(Math.abs(e.amt))}</td>
             <td style="text-align:right; font-weight:bold; color:var(--md-primary);">${fmt(e.balance)}</td>
@@ -5560,96 +5576,20 @@ function renderListView() {
 
          const nxt = filtered[idx + 1];
          if (nxt && nxt.type === 'income' && e.type !== 'income') {
+             // Ajustamos el colspan a 5 porque ahora hay 5 columnas
              html += `<tr style="background:var(--md-primary-container); pointer-events:none;">
-                <td colspan="4" style="text-align:right; padding:8px 10px; font-size:11px; font-weight:bold; color:var(--md-primary); border-bottom:2px dashed var(--md-primary);">
+                <td colspan="5" style="text-align:right; padding:8px 10px; font-size:11px; font-weight:bold; color:var(--md-primary); border-bottom:2px dashed var(--md-primary);">
                     ➔ Saldo libre antes de cobrar "${nxt.label}": ${fmt(e.balance)}
                 </td>
              </tr>`;
          }
     });
-    html += '</tbody></table>';
+	
+	html += '</tbody></table>';
     
     byId('listWrap').innerHTML = html;
 }
 
-window.renderP2PLoans = function() {
-    const list = byId('p2pLoansList');
-    if(!list) return;
-    const myEmail = prof().settings.myEmail;
-    
-    // ORDEN CRONOLÓGICO INTELIGENTE: Los más recientes siempre de primeros
-    window.p2pData.sort((a,b) => {
-        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : Date.now();
-        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : Date.now();
-        return timeB - timeA;
-    });
-
-    let pendingActions = 0; 
-
-    if(window.p2pData.length === 0) {
-        list.innerHTML = '<div class="small" style="text-align:center; padding:16px; background:var(--md-surface-variant); border-radius:12px;">No tienes préstamos activos.</div>';
-        window.p2pPendingCount = 0; updateBellCount();
-        return;
-    }
-
-    list.innerHTML = window.p2pData.map(loan => {
-        const iAmBorrower = loan.borrowerEmail === myEmail;
-        const otherPerson = iAmBorrower ? loan.lenderAlias : loan.borrowerAlias;
-        const roleText = iAmBorrower ? 'Tú pediste a' : 'Te pidió prestado';
-
-        // LÓGICA DE COLORES
-        let color = '';
-        if (loan.status === 'closed') { color = '#0f9d58'; } // Verde: Completado
-        else if (loan.status === 'rejected') { color = '#d93025'; } // Rojo: Rechazado
-        else { color = iAmBorrower ? '#e8710a' : '#1a73e8'; } // Naranja: Yo debo | Azul: Me deben
-
-        let actionBtn = '';
-        
-        // BOTONES DE ACCIÓN (Y CONTEO DE GLOBOS ROJOS)
-        if(loan.status === 'requested' && !iAmBorrower) {
-            actionBtn = `
-                <button class="btn danger" style="font-size:11px; padding:6px; min-height:0;" onclick="actionP2P('${loan.id}', 'reject')">Rechazar</button>
-                <button class="btn primary" style="font-size:11px; padding:6px; min-height:0; margin-left:6px;" onclick="actionP2P('${loan.id}', 'send')">Prestar Dinero</button>
-            `;
-            pendingActions++;
-        } else if(loan.status === 'sent' && iAmBorrower) {
-            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58;" onclick="actionP2P('${loan.id}', 'receive')">Ya lo Recibí</button>`;
-            pendingActions++;
-        } else if(loan.status === 'received' && iAmBorrower) {
-            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:var(--md-on-surface);" onclick="actionP2P('${loan.id}', 'return')">Pagar Deuda</button>`;
-        } else if(loan.status === 'returned' && !iAmBorrower) {
-            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58;" onclick="actionP2P('${loan.id}', 'close')">Confirmar Pago</button>`;
-            pendingActions++;
-        }
-
-        let statusText = '';
-        if(loan.status === 'requested') statusText = '⏳ Solicitado';
-        else if(loan.status === 'sent') statusText = `📤 Dinero Enviado (Ref: ${loan.referenceCode})`;
-        else if(loan.status === 'received') statusText = '✅ Préstamo Activo';
-        else if(loan.status === 'returned') statusText = `💸 Devolución Enviada (Ref: ${loan.returnRef})`;
-        else if(loan.status === 'closed') statusText = '🔒 Saldado / Cerrado';
-        else if(loan.status === 'rejected') statusText = '❌ Solicitud Rechazada';
-
-        return `
-            <div style="padding:12px; border:1px solid ${color}50; border-left: 4px solid ${color}; border-radius:12px; margin-bottom:12px; background:var(--md-surface); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                    <div><div class="small">${roleText} <b>${otherPerson}</b></div><div style="font-weight:bold; font-size:14px;">${loan.desc || 'Sin motivo'}</div></div>
-                    <div style="font-weight:900; font-size:18px; color:${color};">${fmt(loan.amount)}</div>
-                </div>
-                <div class="small" style="background:var(--md-surface-variant); padding:8px; border-radius:8px; margin-bottom:8px;">
-                    <b style="color:${color}">Estado:</b> ${statusText}<br>
-                    ${loan.status === 'requested' ? `<b>Enviar a:</b> ${loan.borrowerAccount}` : ''}
-                    ${loan.status === 'received' && iAmBorrower ? `<b>Pagar a:</b> ${loan.lenderAccount}` : ''}
-                </div>
-                <div style="text-align:right;">${actionBtn}</div>
-            </div>
-        `;
-    }).join('');
-
-    // Actualizamos los globos de notificación globalmente
-    window.p2pPendingCount = pendingActions;
-    updateBellCount();
-};
 
 window.actionP2P = function(loanId, action) {
     const loan = window.p2pData.find(x => x.id === loanId);
@@ -5729,109 +5669,6 @@ window.actionP2P = function(loanId, action) {
 // =========================================================================
 // MOTOR NATIVO DE FECHAS (CAPAWESOME DATETIME PICKER)
 // =========================================================================
-
-
-function renderDashboard() {
-  const p = prof();
-  const todayStr = today();
-  let totalInc = 0; let totalExp = 0; let deficitAlert = null; let delayedItems = [];
-  let todayBal = p.settings.openingBalance;
-  
-  plan.forEach(e => {
-    if (e.date <= todayStr) todayBal = e.balance;
-    if (e.amt > 0) totalInc += e.amt;
-    if (e.amt < 0 && e.type !== 'savings') totalExp += Math.abs(e.amt);
-    if (e.criticalDelay && !deficitAlert) deficitAlert = { date: e.date, reason: e.label };
-    if (e.isDelayed && e.date >= todayStr && !e.criticalDelay) delayedItems.push(e);
-  });
-
-  const last = plan[plan.length - 1];
-  const proj = last ? last.balance : p.settings.openingBalance;
-
-  if(byId('kpiAvailable')) byId('kpiAvailable').textContent = fmt(todayBal);
-  if(byId('kpiRisk')) byId('kpiRisk').textContent = 'Saldo mínimo configurado: ' + fmt(p.settings.minBalance);
-  
-  if(byId('kpiTotalInc')) { byId('kpiTotalInc').textContent = fmt(totalInc); byId('kpiTotalInc').style.color = '#0f9d58'; }
-  if(byId('kpiTotalExp')) { byId('kpiTotalExp').textContent = fmt(totalExp); byId('kpiTotalExp').style.color = '#1a73e8'; }
-  
-  if(byId('kpiBalance')) byId('kpiBalance').textContent = fmt(proj);
-  if(byId('kpiDebt')) byId('kpiDebt').textContent = fmt(p.debts.reduce((s, d) => s + getRemainingSpecialDebt(d), 0));
-  
-  // ACTUALIZAR ETIQUETA DE FECHAS EN EL DASHBOARD
-  if (byId('lblChartDates')) {
-      // Mostramos las fechas en formato corto (Ej. 29/06 al 31/12)
-      byId('lblChartDates').textContent = formatDate(p.settings.planStart).substring(0,5) + ' al ' + formatDate(p.settings.planEnd).substring(0,5);
-  }
-  setTimeout(updateChart, 100);
-
-  let alertHtml = '';
-  if (deficitAlert) {
-      alertHtml = `<div onclick="jumpToCalendar('${deficitAlert.date}')" style="cursor:pointer; background:#fce8e6; color:#d93025; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #d93025; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
-          <span style="font-size:24px;">🚨</span>
-          <div style="line-height:1.2;">
-              <b style="font-size:13px; text-transform:uppercase;">Déficit Crítico</b><br>
-              <span>El pago de <i>"${deficitAlert.reason}"</i> superó tu saldo.<br><u style="font-weight:bold;">Toca para ver el ${formatDate(deficitAlert.date)} ➔</u></span>
-          </div>
-      </div>`;
-  } else if (delayedItems.length > 0) {
-      alertHtml = `<div onclick="jumpToCalendar('${delayedItems[0].date}')" style="cursor:pointer; background:#f3e8fd; color:#9c27b0; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #9c27b0; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
-          <span style="font-size:24px;">🔄</span>
-          <div style="line-height:1.2;">
-              <b style="font-size:13px; text-transform:uppercase;">Pagos Pospuestos</b><br>
-              <span>El sistema movió <b>${delayedItems.length}</b> cuenta(s) por seguridad.<br><u style="font-weight:bold;">Toca para revisar ➔</u></span>
-          </div>
-      </div>`;
-  } else {
-      alertHtml = `<div style="background:#e6f4ea; color:#0f9d58; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #0f9d58; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
-          <span style="font-size:24px;">✅</span>
-          <div style="line-height:1.2;">
-              <b style="font-size:13px; text-transform:uppercase;">Flujo Saludable</b><br>
-              <span>Tus ingresos cubren todo sin retrasos.</span>
-          </div>
-      </div>`;
-  }
-
-  const topBadge = byId('topAlertBadge');
-  if(topBadge) topBadge.innerHTML = alertHtml;
-  
-  // Ocultamos el div gigante y feo del body (ya no se usa)
-  if(byId('dashboardAlerts')) byId('dashboardAlerts').style.display = 'none';
-  
-  const next30Str = new Date(Date.now() + 30*24*60*60*1000).toISOString().slice(0,10);
-  
-  // MAGIA: Añadimos la regla !e.done para ignorar los ya pagados
-  const upcoming = plan.filter(e => e.date >= todayStr && e.date <= next30Str && !e.done);
-
-  let html = '<div class="heading" style="margin-top:24px;margin-bottom:12px;">Próximos 30 días (Pendientes)</div>';
-  if(upcoming.length === 0) html += '<div class="small">No hay movimientos planificados en este rango.</div>';
-  
-  upcoming.forEach(u => {
-     let cBg, cTxt, contextText;
-     if (u.criticalDelay) { cBg = '#fce8e6'; cTxt = '#d93025'; contextText = `Crítico: Vencía el ${formatDate(u.originalDate)}`; }
-     else if (u.isDelayed) { cBg = '#f3e8fd'; cTxt = '#9c27b0'; contextText = `Planeado: ${formatDate(u.originalDate)} ➔ Cobro: ${formatDate(u.date)}`; } 
-     else {
-         if (u.type === 'income') { cBg = '#e6f4ea'; cTxt = '#0f9d58'; } 
-         else if (u.type === 'expense') { cBg = '#e8f0fe'; cTxt = '#1a73e8'; } 
-         else if (u.type === 'savings') { cBg = '#e0f2f1'; cTxt = '#00897b'; } 
-         else if (u.type === 'debt' || u.type === 'debt_cut') { cBg = (u.ref.effectiveColor || '#d93025') + '15'; cTxt = u.ref.effectiveColor || '#d93025'; }
-         else { cBg = '#f5f7fb'; cTxt = '#49454f'; }
-         contextText = formatDate(u.date);
-     }
-     
-     const prefix = u.isDelayed ? 'pp - ' : '';
-
-     html += `<div style="background:${cBg};color:${cTxt};padding:12px;border-radius:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <div><div style="font-weight:700;font-size:14px">${prefix}${u.label}</div><div style="font-size:11px;opacity:0.8">${contextText}</div></div>
-        <div style="text-align:right">
-          <div style="font-weight:900;font-size:15px">${u.amt !== 0 ? fmt(u.amt) : '-'}</div>
-          <div style="font-size:11px; color:var(--md-outline); font-weight:bold; margin-top:2px;">Saldo Restante: <span style="color:var(--md-primary)">${fmt(u.balance)}</span></div>
-          ${!u.done && u.amt !== 0 ? `<button class="btn primary" style="padding:4px 10px;min-height:0;font-size:10px;margin-top:6px;border-radius:6px;background:${cTxt};color:#fff;border:none;" onclick="markCompleted('${u.type}', '${u.ref.id}', '${u.originalDate}')">Adelantar / ✔</button>` : ''}
-        </div>
-     </div>`;
-  });
-  if(byId('upcomingList')) byId('upcomingList').innerHTML = html;
-}
-
 
 function renderSettings() {
   const p = prof();
@@ -6139,6 +5976,198 @@ window.discardUpdate = function() {
     window.updateData.localPath = null;
     renderSettingsTabAbout();
 };
+
+
+window.renderP2PLoans = function() {
+    const list = byId('p2pLoansList');
+    if(!list) return;
+    const myEmail = prof().settings.myEmail;
+    
+    // ORDEN CRONOLÓGICO INTELIGENTE: Los más recientes siempre de primeros
+    window.p2pData.sort((a,b) => {
+        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : Date.now();
+        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : Date.now();
+        return timeB - timeA;
+    });
+
+    let pendingActions = 0; 
+
+    if(window.p2pData.length === 0) {
+        list.innerHTML = '<div class="small" style="text-align:center; padding:16px; background:var(--md-surface-variant); border-radius:12px;">No tienes préstamos activos.</div>';
+        window.p2pPendingCount = 0; updateBellCount();
+        return;
+    }
+
+    list.innerHTML = window.p2pData.map(loan => {
+        const iAmBorrower = loan.borrowerEmail === myEmail;
+        const otherPerson = iAmBorrower ? loan.lenderAlias : loan.borrowerAlias;
+        const roleText = iAmBorrower ? 'Tú pediste a' : 'Te pidió prestado';
+
+        // LÓGICA DE COLORES
+        let color = '';
+        if (loan.status === 'closed') { color = '#0f9d58'; } // Verde: Completado
+        else if (loan.status === 'rejected') { color = '#d93025'; } // Rojo: Rechazado
+        else { color = iAmBorrower ? '#e8710a' : '#1a73e8'; } // Naranja: Yo debo | Azul: Me deben
+
+        let actionBtn = '';
+        
+        // BOTONES DE ACCIÓN (Y CONTEO DE GLOBOS ROJOS)
+        if(loan.status === 'requested' && !iAmBorrower) {
+            actionBtn = `
+                <button class="btn danger" style="font-size:11px; padding:6px; min-height:0;" onclick="actionP2P('${loan.id}', 'reject')">Rechazar</button>
+                <button class="btn primary" style="font-size:11px; padding:6px; min-height:0; margin-left:6px;" onclick="actionP2P('${loan.id}', 'send')">Prestar Dinero</button>
+            `;
+            pendingActions++;
+        } else if(loan.status === 'sent' && iAmBorrower) {
+            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58;" onclick="actionP2P('${loan.id}', 'receive')">Ya lo Recibí</button>`;
+            pendingActions++;
+        } else if(loan.status === 'received' && iAmBorrower) {
+            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:var(--md-on-surface);" onclick="actionP2P('${loan.id}', 'return')">Pagar Deuda</button>`;
+        } else if(loan.status === 'returned' && !iAmBorrower) {
+            actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58;" onclick="actionP2P('${loan.id}', 'close')">Confirmar Pago</button>`;
+            pendingActions++;
+        }
+
+        let statusText = '';
+        if(loan.status === 'requested') statusText = '⏳ Solicitado';
+        else if(loan.status === 'sent') statusText = `📤 Dinero Enviado (Ref: ${loan.referenceCode})`;
+        else if(loan.status === 'received') statusText = '✅ Préstamo Activo';
+        else if(loan.status === 'returned') statusText = `💸 Devolución Enviada (Ref: ${loan.returnRef})`;
+        else if(loan.status === 'closed') statusText = '🔒 Saldado / Cerrado';
+        else if(loan.status === 'rejected') statusText = '❌ Solicitud Rechazada';
+
+        return `
+            <div style="padding:12px; border:1px solid ${color}50; border-left: 4px solid ${color}; border-radius:12px; margin-bottom:12px; background:var(--md-surface); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <div><div class="small">${roleText} <b>${otherPerson}</b></div><div style="font-weight:bold; font-size:14px;">${loan.desc || 'Sin motivo'}</div></div>
+                    <div style="font-weight:900; font-size:18px; color:${color};">${fmt(loan.amount)}</div>
+                </div>
+                <div class="small" style="background:var(--md-surface-variant); padding:8px; border-radius:8px; margin-bottom:8px;">
+                    <b style="color:${color}">Estado:</b> ${statusText}<br>
+                    ${loan.status === 'requested' ? `<b>Enviar a:</b> ${loan.borrowerAccount}` : ''}
+                    ${loan.status === 'received' && iAmBorrower ? `<b>Pagar a:</b> ${loan.lenderAccount}` : ''}
+                </div>
+                <div style="text-align:right;">${actionBtn}</div>
+            </div>
+        `;
+    }).join('');
+
+    // Actualizamos los globos de notificación globalmente
+    window.p2pPendingCount = pendingActions;
+    updateBellCount();
+};
+
+
+function renderDashboard() {
+  const p = prof();
+  const todayStr = today();
+  let totalInc = 0; let totalExp = 0; let deficitAlert = null; let delayedItems = [];
+  let todayBal = p.settings.openingBalance;
+  
+  plan.forEach(e => {
+    if (e.date <= todayStr) todayBal = e.balance;
+    if (e.amt > 0) totalInc += e.amt;
+    if (e.amt < 0 && e.type !== 'savings') totalExp += Math.abs(e.amt);
+    if (e.criticalDelay && !deficitAlert) deficitAlert = { date: e.date, reason: e.label };
+    if (e.isDelayed && e.date >= todayStr && !e.criticalDelay) delayedItems.push(e);
+  });
+
+  const last = plan[plan.length - 1];
+  const proj = last ? last.balance : p.settings.openingBalance;
+
+  if(byId('kpiAvailable')) byId('kpiAvailable').textContent = fmt(todayBal);
+  if(byId('kpiRisk')) byId('kpiRisk').textContent = 'Saldo mínimo configurado: ' + fmt(p.settings.minBalance);
+  
+  if(byId('kpiTotalInc')) { byId('kpiTotalInc').textContent = fmt(totalInc); byId('kpiTotalInc').style.color = '#0f9d58'; }
+  if(byId('kpiTotalExp')) { byId('kpiTotalExp').textContent = fmt(totalExp); byId('kpiTotalExp').style.color = '#1a73e8'; }
+  
+  if(byId('kpiBalance')) byId('kpiBalance').textContent = fmt(proj);
+  if(byId('kpiDebt')) byId('kpiDebt').textContent = fmt(p.debts.reduce((s, d) => s + getRemainingSpecialDebt(d), 0));
+  
+  // ACTUALIZAR ETIQUETA DE FECHAS EN EL DASHBOARD
+  if (byId('lblChartDates')) {
+      // Mostramos las fechas en formato corto (Ej. 29/06 al 31/12)
+      byId('lblChartDates').textContent = formatDate(p.settings.planStart).substring(0,5) + ' al ' + formatDate(p.settings.planEnd).substring(0,5);
+  }
+  setTimeout(updateChart, 100);
+
+  let alertHtml = '';
+  if (deficitAlert) {
+      alertHtml = `<div onclick="jumpToCalendar('${deficitAlert.date}')" style="cursor:pointer; background:#fce8e6; color:#d93025; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #d93025; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
+          <span style="font-size:24px;">🚨</span>
+          <div style="line-height:1.2;">
+              <b style="font-size:13px; text-transform:uppercase;">Déficit Crítico</b><br>
+              <span>El pago de <i>"${deficitAlert.reason}"</i> superó tu saldo.<br><u style="font-weight:bold;">Toca para ver el ${formatDate(deficitAlert.date)} ➔</u></span>
+          </div>
+      </div>`;
+  } else if (delayedItems.length > 0) {
+      alertHtml = `<div onclick="jumpToCalendar('${delayedItems[0].date}')" style="cursor:pointer; background:#f3e8fd; color:#9c27b0; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #9c27b0; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
+          <span style="font-size:24px;">🔄</span>
+          <div style="line-height:1.2;">
+              <b style="font-size:13px; text-transform:uppercase;">Pagos Pospuestos</b><br>
+              <span>El sistema movió <b>${delayedItems.length}</b> cuenta(s) por seguridad.<br><u style="font-weight:bold;">Toca para revisar ➔</u></span>
+          </div>
+      </div>`;
+  } else {
+      alertHtml = `<div style="background:#e6f4ea; color:#0f9d58; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #0f9d58; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
+          <span style="font-size:24px;">✅</span>
+          <div style="line-height:1.2;">
+              <b style="font-size:13px; text-transform:uppercase;">Flujo Saludable</b><br>
+              <span>Tus ingresos cubren todo sin retrasos.</span>
+          </div>
+      </div>`;
+  }
+
+  const topBadge = byId('topAlertBadge');
+  if(topBadge) topBadge.innerHTML = alertHtml;
+  
+  // Ocultamos el div gigante y feo del body (ya no se usa)
+  if(byId('dashboardAlerts')) byId('dashboardAlerts').style.display = 'none';
+  
+  const next30Str = new Date(Date.now() + 30*24*60*60*1000).toISOString().slice(0,10);
+  
+  // 🌟 MAGIA: Atrapa TODO lo pendiente (incluso del pasado) hasta los próximos 30 días
+  const upcoming = plan.filter(e => !e.done && e.originalDate <= next30Str);
+  
+  // Ordenamos para que los más viejos (atrasados) salgan primero
+  upcoming.sort((a,b) => a.originalDate.localeCompare(b.originalDate));
+
+  let html = '<div class="heading" style="margin-top:24px;margin-bottom:12px;">Pendientes y Próximos 30 días</div>';
+  if(upcoming.length === 0) html += '<div class="small">No hay movimientos pendientes en este rango.</div>';
+  
+  upcoming.forEach(u => {
+     let cBg, cTxt, contextText;
+     if (u.criticalDelay) { cBg = '#fce8e6'; cTxt = '#d93025'; contextText = `Crítico: Vencía el ${formatDate(u.originalDate)}`; }
+     else if (u.isDelayed) { cBg = '#f3e8fd'; cTxt = '#9c27b0'; contextText = `Planeado: ${formatDate(u.originalDate)} ➔ Cobro: ${formatDate(u.date)}`; } 
+     else {
+         if (u.type === 'income') { cBg = '#e6f4ea'; cTxt = '#0f9d58'; } 
+         else if (u.type === 'expense') { cBg = '#e8f0fe'; cTxt = '#1a73e8'; } 
+         else if (u.type === 'savings') { cBg = '#e0f2f1'; cTxt = '#00897b'; } 
+         else if (u.type === 'debt' || u.type === 'debt_cut') { cBg = (u.ref.effectiveColor || '#d93025') + '15'; cTxt = u.ref.effectiveColor || '#d93025'; }
+         else { cBg = '#f5f7fb'; cTxt = '#49454f'; }
+         
+         // Etiqueta de Atrasado para lo que se quedó en el pasado
+         if (u.originalDate < todayStr) {
+             contextText = `⚠️ Atrasado (Plan: ${formatDate(u.originalDate)})`;
+             cBg = '#fff3e0'; cTxt = '#e8710a'; 
+         } else {
+             contextText = formatDate(u.date);
+         }
+     }
+     
+     const prefix = u.isDelayed ? 'pp - ' : '';
+
+     html += `<div style="background:${cBg};color:${cTxt};padding:12px;border-radius:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div><div style="font-weight:700;font-size:14px">${prefix}${u.label}</div><div style="font-size:11px;opacity:0.8">${contextText}</div></div>
+        <div style="text-align:right">
+          <div style="font-weight:900;font-size:15px">${u.amt !== 0 ? fmt(u.amt) : '-'}</div>
+          <div style="font-size:11px; color:var(--md-outline); font-weight:bold; margin-top:2px;">Saldo Restante: <span style="color:var(--md-primary)">${fmt(u.balance)}</span></div>
+          ${!u.done && u.amt !== 0 ? `<button class="btn primary" style="padding:4px 10px;min-height:0;font-size:10px;margin-top:6px;border-radius:6px;background:${cTxt};color:#fff;border:none;" onclick="markCompleted('${u.type}', '${u.ref.id}', '${u.originalDate}')">Adelantar / ✔</button>` : ''}
+        </div>
+     </div>`;
+  });
+  if(byId('upcomingList')) byId('upcomingList').innerHTML = html;
+}
 
 // Auto-chequeo silente 3 segundos después de abrir la app
 setTimeout(() => checkForUpdates(false), 3000);
