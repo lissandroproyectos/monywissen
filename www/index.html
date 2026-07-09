@@ -6075,11 +6075,11 @@ window.downloadUpdate = async function() {
     let progressListener = null;
 
     try {
-        const { CapacitorHttp } = window.Capacitor.Plugins;
+        // 🌟 CORRECCIÓN FINAL: En Capacitor 6, las descargas nativas pertenecen a Filesystem
+        const { Filesystem } = window.Capacitor.Plugins;
         
-        // 🌟 CORRECCIÓN: El listener pertenece a CapacitorHttp
-        progressListener = await CapacitorHttp.addListener('httpDownloadProgress', (progress) => {
-            if (progress.url === window.updateData.downloadUrl && progress.contentLength > 0) {
+        progressListener = await Filesystem.addListener('progress', (progress) => {
+            if (progress.contentLength && progress.contentLength > 0) {
                 const percent = Math.round((progress.bytes / progress.contentLength) * 100);
                 window.updateData.downloadProgress = percent;
                 
@@ -6091,10 +6091,10 @@ window.downloadUpdate = async function() {
         });
 
         // Ejecutamos la descarga nativa
-        const response = await CapacitorHttp.downloadFile({
+        const response = await Filesystem.downloadFile({
             url: window.updateData.downloadUrl,
-            filePath: `Monywissen_v${window.updateData.version}.apk`,
-            fileDirectory: 'CACHE',
+            path: `Monywissen_v${window.updateData.version}.apk`,
+            directory: 'CACHE',
             progress: true // Esto activa el rastreo en vivo
         });
 
