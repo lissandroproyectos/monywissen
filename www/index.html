@@ -2173,11 +2173,27 @@ function saveModal(){
   if(!t)return;
 
   if (t === 'complete') {
-     const newDate = byId('f_actual_date').value;
-     if (!newDate) return showToast('Debes seleccionar una fecha.', "⚠️");
+     const mode = window.currentCompleteMode || 'full';
      p.overrides = p.overrides || {};
      const key = i.type + '_' + i.refId + '_' + i.originalDate;
-     p.overrides[key] = { actualDate: newDate, done: true };
+     p.overrides[key] = p.overrides[key] || {};
+     
+     if (mode === 'full') {
+         const newDate = byId('f_actual_date').value;
+         if (!newDate) return showToast('Debes seleccionar una fecha.', "⚠️");
+         p.overrides[key].actualDate = newDate;
+         p.overrides[key].done = true;
+     } else {
+         const partAmt = parseFloat(byId('f_partial_amt').value) || 0;
+         const partDate = byId('f_partial_date').value;
+         
+         if (!partDate || partAmt <= 0) return showToast('Monto inválido.', "⚠️");
+         if (partAmt >= window.tempExpectedAmt) return showToast('El abono debe ser menor al total. Usa "Pago Total".', "⚠️");
+
+         p.overrides[key].partials = p.overrides[key].partials || [];
+         p.overrides[key].partials.push({ date: partDate, amt: partAmt });
+     }
+     
      saveApp(); closeModal(); runPlan();
      return; 
   }
@@ -2835,52 +2851,114 @@ function addOccur(mapObj, date, label, type, amt, ref) {
   const p = prof();
   p.overrides = p.overrides || {};
   const key = type + '_' + ref.id + '_' + date;
-  let finalDate = date;
-  let done = false;
 
-  // Interceptar pagos adelantados o descartados
-  if (p.overrides[key]) {
-      if (p.overrides[key].discarded) return; // Se ignora por completo y no resta dinero
-      finalDate = p.overrides[key].actualDate;
-      done = p.overrides[key].done;
-  }
+  if (p.overrides[key] && p.overrides[key].discarded) return;
 
-  // Si la fecha real de pago es ANTERIOR a tu plan, no se proyecta (porque tu Saldo Base ya lo refleja)
-  if (finalDate >= p.settings.planStart && finalDate <= p.settings.planEnd) {
-      (mapObj[finalDate] ??= []).push({ 
-          label: label + (done ? ' (✓)' : ''), 
-          type, amt, ref, originalDate: date, done 
-      });
+  let done = p.overrides[key] ? p.overrides[key].done : false;
+  let finalDate = (p.overrides[key] && p.overrides[key].actualDate) ? p.overrides[key].actualDate : date;
+  
+  let partials = (p.overrides[key] && p.overrides[key].partials) ? p.overrides[key].partials : [];
+  let remainingAmt = Math.abs(amt);
+
+  // 1. Distribuir abonos parciales en sus fechas correspondientes
+  partials.forEach(pt => {
+      if (pt.date >= p.settings.planStart && pt.date <= p.settings.planEnd) {
+          (mapObj[pt.date] ??= []).push({ 
+              label: label + ' (Abono ✓)', type, amt: amt > 0 ? pt.amt : -pt.amt, 
+              ref, originalDate: date, done: true, isPartial: true 
+          });
+      }
+      remainingAmt -= pt.amt;
+  });
+
+  // Si el remanente es ínfimo por decimales, darlo por saldado
+  if (remainingAmt <= 0.01) { done = true; remainingAmt = 0; }
+
+  // 2. Inyectar el resto (o el pago completo)
+  if (done) {
+      if (remainingAmt > 0 && finalDate >= p.settings.planStart && finalDate <= p.settings.planEnd) {
+          (mapObj[finalDate] ??= []).push({ 
+              label: label + ' (✓)', type, amt: amt > 0 ? remainingAmt : -remainingAmt, 
+              ref, originalDate: date, done: true 
+          });
+      }
+  } else {
+      if (remainingAmt > 0 && date >= p.settings.planStart && date <= p.settings.planEnd) {
+          (mapObj[date] ??= []).push({ 
+              label: label + (partials.length > 0 ? ' (Restante)' : ''), type, 
+              amt: amt > 0 ? remainingAmt : -remainingAmt, ref, originalDate: date, done: false 
+          });
+      }
   }
 }
 
 function markCompleted(type, refId, originalDate) {
    modalType = 'complete';
    modalIndex = { type: type, refId: refId, originalDate: originalDate }; 
+   window.currentCompleteMode = 'full';
    
+   // Buscamos cuánto era el monto exacto esperado para precargarlo
+   const ev = plan.find(x => x.type === type && x.ref.id === refId && x.originalDate === originalDate && !x.done && !x.isPartial);
+   const expectedAmt = ev ? Math.abs(ev.amt) : 0;
+   window.tempExpectedAmt = expectedAmt; 
+
    byId('modalTitle').textContent = 'Gestionar Movimiento';
    byId('btnDelete').style.display = 'none';
    byId('btnSave').style.display = 'inline-flex';
    
-   // Formulario para cambiar la fecha o descartar
    byId('modalBody').innerHTML = `
-    <div class="grid">
-      <div>
-        <label>¿En qué fecha real lo pagaste/recibiste?</label>
-        <input type="date" id="f_actual_date" value="${today()}" required>
-      </div>
-      <div class="small" style="color:var(--md-primary)">
-        Al Guardar, se marcará como ✔ Completado. Si colocas una fecha pasada (antes del inicio de tu plan), se eliminará de tus proyecciones futuras.
-      </div>
-      <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 8px 0;">
-      <div>
+    <div class="tabs" style="margin-bottom:16px; background:var(--md-surface-variant); border-radius:12px; padding:4px;">
+       <div class="tab active" style="flex:1; text-align:center; border:none; border-radius:8px; background:var(--md-surface); color:var(--md-primary); box-shadow:0 1px 3px rgba(0,0,0,0.1);" onclick="switchCompleteTab('full', this)">Pago Total</div>
+       <div class="tab" style="flex:1; text-align:center; border:none; border-radius:8px; color:var(--md-on-surface-variant);" onclick="switchCompleteTab('partial', this)">Abono Parcial</div>
+    </div>
+
+    <div id="tab-comp-full" class="tab-content active" style="padding:4px;">
+        <div>
+            <label>Fecha real de pago:</label>
+            <input type="date" id="f_actual_date" value="${today()}" required>
+        </div>
+        <div class="small" style="color:var(--md-primary); margin-top:8px;">
+            Se marcará como ✔ Completado por el monto total de <b>${fmt(expectedAmt)}</b>.
+        </div>
+    </div>
+
+    <div id="tab-comp-partial" class="tab-content" style="display:none; padding:4px;">
+        <div class="grid grid2">
+            <div><label>Monto a abonar ($)</label><input type="number" id="f_partial_amt" placeholder="Ej. 30" max="${expectedAmt}" required></div>
+            <div><label>Fecha del abono</label><input type="date" id="f_partial_date" value="${today()}" required></div>
+        </div>
+        <div class="small" style="color:var(--md-primary); margin-top:8px;">
+            Se registrará este abono y el resto seguirá como "Pendiente".
+        </div>
+    </div>
+
+    <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
+    <div>
          <button class="btn danger" style="width:100%" onclick="discardMovement()">🚫 Descartar / Omitir este pago</button>
-         <div class="small" style="margin-top:6px; color:var(--md-on-surface-variant); text-align:center;">Úsalo si la cuota fue cancelada, perdonada o es un error.</div>
-      </div>
-    </div>`;
+    </div>
+   `;
    
    byId('modal').classList.add('active');
 }
+
+window.switchCompleteTab = function(mode, el) {
+    const parent = el.parentElement;
+    parent.querySelectorAll('.tab').forEach(t => {
+        t.classList.remove('active');
+        t.style.background = 'transparent';
+        t.style.color = 'var(--md-on-surface-variant)';
+        t.style.boxShadow = 'none';
+    });
+    
+    el.classList.add('active');
+    el.style.background = 'var(--md-surface)';
+    el.style.color = 'var(--md-primary)';
+    el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+
+    byId('tab-comp-full').style.display = mode === 'full' ? 'block' : 'none';
+    byId('tab-comp-partial').style.display = mode === 'partial' ? 'block' : 'none';
+    window.currentCompleteMode = mode;
+};
 
 // --- MOTOR DE DIÁLOGOS DEL SISTEMA ---
 let dialogCallback = null;
@@ -3504,7 +3582,9 @@ function runPlan(){
       const freq = customDef.freq || 'monthly';
       const pay = parseFloat(x.amount) || 0;
       const totalDebt = parseFloat(x.balance) || 0;
-      let accumulated = 0;
+      
+      // 🌟 CORRECCIÓN: El acumulado arranca considerando lo que ya habías pagado antes
+      let accumulated = parseFloat(x.amortized) || 0; 
 
       while (curr <= limitDate) {
         if (totalDebt > 0 && accumulated >= totalDebt) break; // Termina si ya se pagó todo
@@ -4057,11 +4137,25 @@ function showDetails(type, refId, originalDate, planDate) {
          html += '<div style="color:#d93025; font-weight:bold; padding:8px; background:#fce8e6; border-radius:8px;">⚠️ Retraso Crítico (Superó 2 ingresos)</div>';
      }
      
+     const override = (p.overrides || {})[type + '_' + refId + '_' + originalDate];
+     if (override && override.partials && override.partials.length > 0) {
+         html += '<div style="margin-top:12px; background:var(--md-surface-variant); padding:12px; border-radius:12px; border:1px solid var(--md-outline-variant);">';
+         html += '<div class="small" style="font-weight:bold; margin-bottom:8px; color:var(--md-primary);">Abonos Parciales Registrados:</div>';
+         override.partials.forEach(pt => {
+             html += `<div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:13px;">
+                <span>📅 ${formatDate(pt.date)}</span>
+                <span style="font-weight:bold; color:var(--md-on-surface);">${fmt(pt.amt)}</span>
+             </div>`;
+         });
+         html += '</div>';
+     }
+
      if (ev.done) {
          html += '<div><span class="small">Estado actual:</span><br><b style="color:#0f9d58">✔ Pagado/Completado</b></div>';
-         html += `<button class="btn danger" style="margin-top:12px; width:100%; border-radius:8px;" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer / Marcar como Pendiente</button>`;
+         html += `<button class="btn danger" style="margin-top:12px; width:100%; border-radius:8px;" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer (Borra abonos y pagos)</button>`;
      } else {
          html += '<hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 8px 0;">';
+         html += `<button class="btn danger" style="margin-bottom:8px; width:100%; background:transparent; color:var(--md-error); border:1px solid var(--md-error);" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer Abonos</button>`;
          html += '<button class="btn primary" style="width:100%" onclick="markCompleted(\'' + ev.type + '\', \'' + ev.ref.id + '\', \'' + ev.originalDate + '\')">Gestionar / Completar Pago</button>';
      }
      
