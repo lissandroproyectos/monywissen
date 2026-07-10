@@ -4,10 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#ffffff" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.1.2" />
+<meta name="app-version" content="1.1.3" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-busqueda en la red" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -1114,29 +1114,26 @@ const fbCheck = setInterval(() => {
             firebase.initializeApp(firebaseConfig);
             window.db = firebase.firestore();
             
-            // 🌟 PARCHE MAESTRO PARA APK
-            // experimentalForceLongPolling: OBLIGATORIO para evitar bloqueos del WebView de Android
-            // persistence: Habilita el caché local robusto para que la app no pierda datos si la red parpadea
+            // 🌟 INICIALIZACIÓN MODERNA Y LIMPIA (Firebase v10+)
             try {
                 window.db.settings({ 
                     experimentalForceLongPolling: true,
-                    persistence: true 
-                });
-                // Habilitamos la persistencia específicamente para entornos web/híbridos
-                window.db.enablePersistence({ synchronizeTabs: true })
-                    .catch((err) => {
-                        if (err.code == 'failed-precondition') {
-                            console.warn("Persistencia no disponible: múltiples pestañas abiertas.");
-                        } else if (err.code == 'unimplemented') {
-                            console.warn("Persistencia no soportada en este navegador.");
+                    // Usamos el objeto cache moderno en lugar de llamar a enablePersistence por separado
+                    cache: {
+                        kind: 'persistent',
+                        settings: {
+                            // Esto reemplaza a enableMultiTabIndexedDbPersistence
+                            cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED 
                         }
-                    });
+                    }
+                });
+                console.log("🔥 Firestore configurado con Caché persistente moderno.");
             } catch (e) {
-                console.error("Error al configurar ajustes de Firestore:", e);
+                console.warn("Firestore settings: configuración ya establecida o no soportada.", e);
             }
             
             window.auth = firebase.auth();
-            console.log("🔥 Firebase conectado en modo Híbrido (Persistencia Activada)");
+            console.log("🔥 Firebase conectado en modo Híbrido");
             initFirebaseAuth(); 
         }
     }
