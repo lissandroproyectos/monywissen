@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.3.81" />
+<meta name="app-version" content="1.3.9" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-busqueda en la red" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -546,12 +546,12 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
       <div id="tab-db" class="tab-content">
          <div class="small" style="margin-bottom:16px; line-height:1.4;">Protege tu información. El texto se guarda en la nube para sincronización rápida, y las imágenes se exportan a un archivo físico por privacidad.</div>
          
-         <div style="background:var(--md-primary-container); padding:16px; border-radius:12px; margin-bottom:12px;">
+         <div id="syncCard" style="background:var(--md-primary-container); padding:16px; border-radius:12px; margin-bottom:12px; transition: all 0.3s ease;">
              <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
-                 <div style="font-weight:bold; margin-bottom:4px; font-size:14px; color:var(--md-primary);">☁️ Sincronización Híbrida</div>
+                 <div id="syncCardTitle" style="font-weight:bold; margin-bottom:4px; font-size:14px; color:var(--md-primary);">☁️ Sincronización Híbrida</div>
                  <div id="lblLastSync" class="small" style="color:var(--md-primary); background:var(--md-surface); padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px; box-shadow:0 1px 2px rgba(0,0,0,0.1);">Nunca sincronizado</div>
              </div>
-             <div class="small" style="margin-bottom:12px; margin-top:4px;">Guarda saldos y contactos en Firebase. Genera un archivo con tus fotos.</div>
+             <div id="syncCardDesc" class="small" style="margin-bottom:12px; margin-top:4px;">Guarda saldos y contactos en Firebase. Genera un archivo con tus fotos.</div>
              
              <div class="grid grid2" style="gap:8px;">
                  <button class="btn primary" onclick="generateHybridBackup()">☁️ Sincronizar y Exportar</button>
@@ -2064,7 +2064,6 @@ window.generateHybridBackup = async function() {
         input: true, inputValue: '', cancelText: 'Cancelar', confirmText: 'Sincronizar',
         onConfirm: async (customName) => {
             const backupName = customName.trim() || new Date().toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' });
-            showToast("Sincronizando...", "⏳");
             
             const backupId = 'BKP_' + Date.now();
             const fullBackup = JSON.parse(JSON.stringify(app));
@@ -2073,7 +2072,7 @@ window.generateHybridBackup = async function() {
             const cloudBackup = JSON.parse(JSON.stringify(app));
             cloudBackup.backupId = backupId;
 
-            // Extracción de imágenes pesadas para no colapsar la nube
+            // Limpieza de imágenes pesadas
             Object.values(cloudBackup.profiles).forEach(profile => {
                 if (profile.expenses) profile.expenses.forEach(exp => { delete exp.receiptImg; delete exp.deliveryImgs; });
                 if (profile.savingsList) profile.savingsList.forEach(sav => { delete sav.receiptImg; delete sav.deliveryImgs; });
@@ -2082,31 +2081,81 @@ window.generateHybridBackup = async function() {
                 });
             });
 
-            try {
+            // 🌟 MOTOR DE INTENTOS CON RESUCITACIÓN DE RED
+            const attemptSync = async (timeouts) => {
                 const userRef = db.collection('users').doc(p.settings.myEmail);
-                const doc = await userRef.get();
-                let backups = [];
                 
-                if (doc.exists && doc.data().backups) backups = doc.data().backups;
-                else if (doc.exists && doc.data().cloudBackup) backups.push({ id: doc.data().lastBackupId, date: doc.data().lastBackupDate, data: doc.data().cloudBackup });
+                for (let i = 0; i < timeouts.length; i++) {
+                    const currentTimeout = timeouts[i];
+                    try {
+                        if (!navigator.onLine) throw new Error("offline");
+                        
+                        showToast(`Sincronizando... (Intento ${i + 1}/${timeouts.length})`, "⏳");
+                        
+                        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), currentTimeout));
+                        
+                        // Forzamos la lectura desde el servidor para certificar conexión real
+                        const doc = await Promise.race([userRef.get({ source: 'server' }), timeoutPromise]);
+                        
+                        let backups = [];
+                        if (doc.exists && doc.data().backups) backups = doc.data().backups;
+                        else if (doc.exists && doc.data().cloudBackup) backups.push({ id: doc.data().lastBackupId, date: doc.data().lastBackupDate, data: doc.data().cloudBackup });
 
-                backups.push({ id: backupId, date: backupName, data: cloudBackup });
-                if (backups.length > 3) backups = backups.slice(backups.length - 3);
+                        backups.push({ id: backupId, date: backupName, data: cloudBackup });
+                        if (backups.length > 3) backups = backups.slice(backups.length - 3);
 
-                await userRef.set({ backups: backups }, { merge: true });
+                        // Subimos la data
+                        await Promise.race([userRef.set({ backups: backups }, { merge: true }), timeoutPromise]);
+                        
+                        return true; // Éxito total, salimos del bucle
+                    } catch (err) {
+                        console.warn(`Intento ${i + 1} fallido (${currentTimeout}ms). Razón:`, err.message);
+                        
+                        // 🔌 MAGIA: Si el túnel está colgado (timeout), reiniciamos Firebase a la fuerza
+                        if (err.message === 'timeout' && i < timeouts.length - 1) {
+                            showToast("Reiniciando conexión con Firebase...", "🔌");
+                            try {
+                                await db.disableNetwork(); // Destruye el túnel fantasma
+                                await db.enableNetwork();  // Crea un túnel fresco y nuevo
+                            } catch(netErr) {
+                                console.warn("Fallo al reiniciar red de Firebase", netErr);
+                            }
+                        }
 
-                // 🌟 ÉXITO: Guardamos y mostramos la fecha localmente
+                        if (i === timeouts.length - 1) throw err; // Si es el último intento, declaramos el fracaso
+                    }
+                }
+            };
+
+            try {
+                // Ejecutamos la secuencia de tiempos: 3s, 5s, 10s
+                await attemptSync([3000, 5000, 10000]);
+
+                // 🌟 ÉXITO CERTIFICADO
                 const nowStr = new Date().toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' });
                 localStorage.setItem('monywissen_last_sync', nowStr);
-                renderSettings(); 
+                
+                // Validación visual: ¿Estamos en la pestaña de respaldo?
+                const isDbTabActive = byId('tab-db') && byId('tab-db').classList.contains('active');
+                if (isDbTabActive) {
+                    const card = byId('syncCard');
+                    if (card) {
+                        card.style.background = '#e6f4ea'; 
+                        card.style.border = '1px solid #0f9d58';
+                        byId('syncCardTitle').style.color = '#0f9d58';
+                        byId('syncCardDesc').innerHTML = '✅ <b>Conexión Certificada.</b> Tu respaldo fue subido a la nube correctamente.';
+                        byId('syncCardDesc').style.color = '#0f9d58';
+                    }
+                    if (byId('lblLastSync')) byId('lblLastSync').innerHTML = `Última vez: ${nowStr}`;
+                }
 
-                // 🌟 PREGUNTA FINAL: ¿Guardar imágenes o no?
+                // Pregunta final para el archivo físico de imágenes
                 setTimeout(() => {
                     showDialog({
                         title: 'Nube Sincronizada ✅',
                         msg: `Tus saldos y contactos ya están en Firebase.<br><br><b>¿Deseas descargar tu archivo físico (.mnwsn)?</b> Esto sirve para proteger tus fotos y comprobantes localmente en tu celular.`,
                         hideCancel: false,
-                        confirmText: 'Sí, descargar fotos',
+                        confirmText: 'Sí, descargar',
                         cancelText: 'No, solo nube',
                         onConfirm: async () => {
                             const safeName = customName.trim() ? customName.trim().replace(/[^a-zA-Z0-9]/g, '_') : new Date().toISOString().split('T')[0];
@@ -2124,8 +2173,19 @@ window.generateHybridBackup = async function() {
                 }, 400);
 
             } catch (error) {
-                console.error("Error Firestore Backup:", error);
-                showToast("Error al sincronizar con la nube.", "❌");
+                // 🌟 FRACASO ABSOLUTO (Se agotaron los 3 intentos y reinicios de red)
+                const isDbTabActive = byId('tab-db') && byId('tab-db').classList.contains('active');
+                if (isDbTabActive) {
+                    const card = byId('syncCard');
+                    if (card) {
+                        card.style.background = '#fff3e0';
+                        card.style.border = '1px solid #ff9800';
+                        byId('syncCardTitle').style.color = '#e65100';
+                        byId('syncCardDesc').innerHTML = '⚠️ <b>Fallo de conexión.</b> No se pudo conectar con la base de datos de la nube. Asegúrate de tener buena señal o desactivar bloqueadores de red.';
+                        byId('syncCardDesc').style.color = '#e65100';
+                    }
+                }
+                showToast("Fallo de conexión al servidor tras varios intentos.", "❌");
             }
         }
     });
