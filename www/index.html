@@ -9,16 +9,12 @@
 
 <meta name="app-version" content="1.3.3" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
-<meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-improve updates" />
+<meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-pgos parciales" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
 
 <title>Monywissen</title>
 <style>
 :root{
-
-#appLoader { position:fixed; inset:0; background:var(--md-surface); z-index:999999; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: opacity 0.3s; }
-.spinner { width:40px; height:40px; border:4px solid var(--md-outline-variant); border-top-color:var(--md-primary); border-radius:50%; animation:spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
 
   --md-surface:#ffffff;
   --md-surface-variant:#f5f7fb;
@@ -36,6 +32,11 @@
   --radius:16px;
   --touch:48px;
 }
+
+#appLoader { position:fixed; inset:0; background:var(--md-surface); z-index:999999; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: opacity 0.3s; }
+.spinner { width:40px; height:40px; border:4px solid var(--md-outline-variant); border-top-color:var(--md-primary); border-radius:50%; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 *{box-sizing:border-box;touch-action:manipulation}
 html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--md-on-surface)}
 button,input,select{font:inherit}
@@ -270,8 +271,6 @@ label{display:block;font-size:12px;color:var(--md-on-surface-variant);margin-bot
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
         <div class="heading" style="margin:0;">Cronograma</div>
         <div style="display:flex; gap:4px; background:var(--md-surface-variant); padding:4px; border-radius:8px; flex-wrap:wrap;">
-           <button class="btn" style="padding:6px 12px; font-size:12px; border:none; min-height:0; background:transparent; color:var(--md-on-surface);" onclick="toggleHideCompleted()" id="btnHideCompleted">👁️ Ocultar Listos</button>
-           <div style="width:1px; background:var(--md-outline-variant); margin: 0 4px;"></div>
            <button class="btn" style="padding:6px 12px; font-size:12px; border:none; min-height:0; background:var(--md-surface);" onclick="toggleView('cal')" id="btnViewCal">📅 Calendario</button>
            <button class="btn" style="padding:6px 12px; font-size:12px; border:none; min-height:0; background:transparent;" onclick="toggleView('list')" id="btnViewList">📋 Lista</button>
         </div>
@@ -1651,8 +1650,13 @@ function openEdit(type, idx) {
   modalType = type; modalIndex = idx;
   const p = prof();
   
-  const item = type === 'income' ? p.incomes[idx] : p.expenses[idx];
-  window.isSingleTransaction = item && item.freq === 'one-time';
+  let item = null;
+  if (type === 'income') item = p.incomes[idx];
+  else if (type === 'expense') item = p.expenses[idx];
+  else if (type === 'saving') item = p.savingsList[idx];
+  else if (type === 'debt') item = p.debts[idx];
+
+  window.isSingleTransaction = (type === 'income' || type === 'expense') && item && item.freq === 'one-time';
 
   byId('modalTitle').textContent = window.isSingleTransaction ? 'Editar Transacción Única' : (type==='income'?'Editar ingreso':type==='expense'?'Editar gasto':type==='saving'?'Editar Ahorro':'Editar deuda');
   byId('btnDelete').style.display='inline-flex';
@@ -1662,17 +1666,60 @@ function openEdit(type, idx) {
   if (window.isSingleTransaction) {
       html = singleTransactionForm(type, item);
   } else {
-      if(type==='income') html = incomeForm(p.incomes[idx]);
-      else if(type==='expense') html = expenseForm(p.expenses[idx]);
-      else if(type==='saving') html = savingForm(p.savingsList[idx]);
-      else html = debtForm(p.debts[idx]);
+      if(type==='income') html = incomeForm(item);
+      else if(type==='expense') html = expenseForm(item);
+      else if(type==='saving') html = savingForm(item);
+      else html = debtForm(item);
+  }
+  
+  // --- HISTORIAL GENERAL DE ABONOS Y COMENTARIOS ---
+  if (item && item.id && (type === 'debt' || type === 'expense')) {
+      let historyHtml = '';
+      const overrides = p.overrides || {};
+      const records = [];
+      Object.keys(overrides).forEach(key => {
+          if (key.startsWith(type + '_' + item.id + '_')) {
+              const ov = overrides[key];
+              if (ov.partials && ov.partials.length > 0) {
+                  ov.partials.forEach((pt, pIdx) => {
+                      records.push({ date: pt.date, amt: pt.amt, comment: pt.comment, targetDate: key.split('_')[2], key: key, pIdx: pIdx });
+                  });
+              }
+          }
+      });
+      
+      if (records.length > 0) {
+          records.sort((a,b) => b.date.localeCompare(a.date)); 
+          historyHtml += `<div style="margin-top:16px; border-top:1px solid var(--md-outline-variant); padding-top:16px;">
+              <div class="heading" style="font-size:14px; margin-bottom:8px; color:var(--md-primary);">Historial Global de Abonos</div>
+              <div style="background:var(--md-surface-variant); padding:8px; border-radius:12px; max-height:180px; overflow-y:auto; border:1px solid var(--md-outline-variant);">`;
+              
+          records.forEach(r => {
+              const cHtml = r.comment ? `<div style="font-size:11px; color:var(--md-on-surface-variant); margin-top:2px;">💬 ${r.comment}</div>` : '';
+              historyHtml += `<div style="display:flex; justify-content:space-between; align-items:center; background:var(--md-surface); padding:10px; border-radius:8px; margin-bottom:6px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                  <div>
+                      <div style="font-size:12px; font-weight:bold; color:var(--md-on-surface);">Pago Real: ${formatDate(r.date)}</div>
+                      <div style="font-size:10px; color:var(--md-primary); margin-top:2px;">📌 Destino: Cuota del ${formatDate(r.targetDate)}</div>
+                      ${cHtml}
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-weight:900; color:#0f9d58; font-size:14px;">+${fmt(r.amt)}</span>
+                      <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="deletePartialByKey('${r.key}', ${r.pIdx})">✕</button>
+                  </div>
+              </div>`;
+          });
+          historyHtml += `</div></div>`;
+          html += historyHtml;
+      }
   }
   
   byId('modalBody').innerHTML=html;
   byId('modal').classList.add('active');
+
+  // 🌟 REPARACIÓN: Estas son las 4 líneas que faltaban para encender los campos
   if(type==='debt'){toggleAprSection();showDebtProjection();toggleDebtType();}
-  if(type==='expense'){toggleFreqOpts();} 
-  setTimeout(initCustomSelects, 50); // Módulos premium activados
+  if(type==='expense'){toggleFreqOpts();}
+  setTimeout(initCustomSelects, 50);
   if(type === 'saving') setTimeout(renderDeliveryPreviews, 100);
 }
 
@@ -2186,12 +2233,13 @@ function saveModal(){
      } else {
          const partAmt = parseFloat(byId('f_partial_amt').value) || 0;
          const partDate = byId('f_partial_date').value;
+         const partComment = byId('f_partial_comment').value.trim(); 
          
          if (!partDate || partAmt <= 0) return showToast('Monto inválido.', "⚠️");
          if (partAmt >= window.tempExpectedAmt) return showToast('El abono debe ser menor al total. Usa "Pago Total".', "⚠️");
 
          p.overrides[key].partials = p.overrides[key].partials || [];
-         p.overrides[key].partials.push({ date: partDate, amt: partAmt });
+         p.overrides[key].partials.push({ date: partDate, amt: partAmt, comment: partComment });
      }
      
      saveApp(); closeModal(); runPlan();
@@ -2460,11 +2508,15 @@ function promptCreateCustomDebt(editId = null) {
 }
 
 function deleteCustomDebt(id) {
-    if(confirm('¿Seguro que deseas eliminar este tipo de deuda? (Las deudas ya creadas mantendrán sus cálculos pero perderán la etiqueta personalizada)')) {
-        const p = prof();
-        p.settings.customDebts = p.settings.customDebts.filter(c => c.id !== id);
-        saveApp(); renderDebts();
-    }
+    showDialog({
+        title: 'Eliminar Tipo de Deuda',
+        msg: '¿Seguro que deseas eliminar este tipo de deuda? (Las deudas ya creadas mantendrán sus cálculos pero perderán la etiqueta personalizada)',
+        onConfirm: () => {
+            const p = prof();
+            p.settings.customDebts = p.settings.customDebts.filter(c => c.id !== id);
+            saveApp(); renderDebts();
+        }
+    });
 }
 
 function makeDaySelector(freq,day){
@@ -2734,13 +2786,17 @@ function getRemainingSpecialDebt(x) {
   const amortizado = parseFloat(x.amortized) || 0;
 
   if (x.type !== 'cashea' && x.type !== 'quoota') {
-      // Deuda restante inicial = Balance Original - Lo que pagaste en el pasado
       let rem = (parseFloat(x.balance) || 0) - amortizado; 
       
-      // Restamos los pagos hechos con los "clics" (✓) en el calendario de la app
       Object.keys(p.overrides).forEach(k => {
-          if (k.startsWith('debt_' + x.id + '_') && (p.overrides[k].done || p.overrides[k].discarded)) {
-              rem -= (parseFloat(x.minPay) || 0);
+          if (k.startsWith('debt_' + x.id + '_')) {
+              const ov = p.overrides[k];
+              if (ov.done || ov.discarded) {
+                  rem -= (parseFloat(x.minPay) || 0);
+              } else if (ov.partials && ov.partials.length > 0) {
+                  // 🌟 MAGIA: Si no está pagada completa, resta los abonos parciales
+                  ov.partials.forEach(pt => { rem -= (parseFloat(pt.amt) || 0); });
+              }
           }
       });
       return rem < 0 ? 0 : rem;
@@ -2755,15 +2811,20 @@ function getRemainingSpecialDebt(x) {
   while (curr <= endDate) {
     const dateStr = curr.toISOString().slice(0, 10);
     const key = 'debt_' + x.id + '_' + dateStr;
-    const isDone = p.overrides[key] && (p.overrides[key].done || p.overrides[key].discarded);
+    const ov = p.overrides[key];
 
-    if (!isDone) {
-      remainingBalance += parseFloat(x.amount);
+    if (ov && (ov.done || ov.discarded)) {
+        // Nada, cuota cubierta
+    } else {
+        let quotaRem = parseFloat(x.amount);
+        if (ov && ov.partials) {
+            ov.partials.forEach(pt => { quotaRem -= (parseFloat(pt.amt) || 0); });
+        }
+        remainingBalance += quotaRem;
     }
     curr.setDate(curr.getDate() + 14);
   }
   
-  // Finalmente, restamos el monto que pusiste como "Amortizado Previamente"
   remainingBalance -= amortizado;
   return remainingBalance < 0 ? 0 : remainingBalance;
 }
@@ -2856,39 +2917,31 @@ function addOccur(mapObj, date, label, type, amt, ref) {
 
   let done = p.overrides[key] ? p.overrides[key].done : false;
   let finalDate = (p.overrides[key] && p.overrides[key].actualDate) ? p.overrides[key].actualDate : date;
+  let userPostponed = p.overrides[key] ? p.overrides[key].userPostponed : false;
   
   let partials = (p.overrides[key] && p.overrides[key].partials) ? p.overrides[key].partials : [];
   let remainingAmt = Math.abs(amt);
 
-  // 1. Distribuir abonos parciales en sus fechas correspondientes
+  // 1. Distribuir abonos parciales
   partials.forEach(pt => {
       if (pt.date >= p.settings.planStart && pt.date <= p.settings.planEnd) {
           (mapObj[pt.date] ??= []).push({ 
               label: label + ' (Abono ✓)', type, amt: amt > 0 ? pt.amt : -pt.amt, 
-              ref, originalDate: date, done: true, isPartial: true 
+              ref, originalDate: date, done: true, isPartial: true, userPostponed: false
           });
       }
       remainingAmt -= pt.amt;
   });
 
-  // Si el remanente es ínfimo por decimales, darlo por saldado
   if (remainingAmt <= 0.01) { done = true; remainingAmt = 0; }
 
-  // 2. Inyectar el resto (o el pago completo)
-  if (done) {
-      if (remainingAmt > 0 && finalDate >= p.settings.planStart && finalDate <= p.settings.planEnd) {
-          (mapObj[finalDate] ??= []).push({ 
-              label: label + ' (✓)', type, amt: amt > 0 ? remainingAmt : -remainingAmt, 
-              ref, originalDate: date, done: true 
-          });
-      }
-  } else {
-      if (remainingAmt > 0 && date >= p.settings.planStart && date <= p.settings.planEnd) {
-          (mapObj[date] ??= []).push({ 
-              label: label + (partials.length > 0 ? ' (Restante)' : ''), type, 
-              amt: amt > 0 ? remainingAmt : -remainingAmt, ref, originalDate: date, done: false 
-          });
-      }
+  // 2. Inyectar el remanente (Respeta finalDate si el usuario lo pospuso o el sistema lo adelantó/retrasó)
+  if (remainingAmt > 0 && finalDate >= p.settings.planStart && finalDate <= p.settings.planEnd) {
+      (mapObj[finalDate] ??= []).push({ 
+          label: label + (done ? ' (✓)' : (partials.length > 0 ? ' (Restante)' : '')), 
+          type, amt: amt > 0 ? remainingAmt : -remainingAmt, 
+          ref, originalDate: date, done: done, userPostponed: userPostponed 
+      });
   }
 }
 
@@ -2897,7 +2950,10 @@ function markCompleted(type, refId, originalDate) {
    modalIndex = { type: type, refId: refId, originalDate: originalDate }; 
    window.currentCompleteMode = 'full';
    
-   // Buscamos cuánto era el monto exacto esperado para precargarlo
+   const p = prof();
+   const key = type + '_' + refId + '_' + originalDate;
+   const override = (p.overrides || {})[key] || {};
+
    const ev = plan.find(x => x.type === type && x.ref.id === refId && x.originalDate === originalDate && !x.done && !x.isPartial);
    const expectedAmt = ev ? Math.abs(ev.amt) : 0;
    window.tempExpectedAmt = expectedAmt; 
@@ -2906,7 +2962,28 @@ function markCompleted(type, refId, originalDate) {
    byId('btnDelete').style.display = 'none';
    byId('btnSave').style.display = 'inline-flex';
    
+   let partialsHtml = '';
+   if (override.partials && override.partials.length > 0) {
+       partialsHtml += '<div style="margin-bottom:16px; background:var(--md-surface-variant); padding:12px; border-radius:12px; border:1px solid var(--md-outline-variant);">';
+       partialsHtml += '<div class="small" style="font-weight:bold; margin-bottom:8px; color:var(--md-primary);">Abonos en esta cuota:</div>';
+       override.partials.forEach((pt, pIdx) => {
+           const cHtml = pt.comment ? `<div style="font-size:11px; color:var(--md-on-surface-variant); margin-top:2px;">💬 ${pt.comment}</div>` : '';
+           partialsHtml += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; border-bottom:1px dashed var(--md-outline-variant); padding-bottom:6px;">
+              <div style="flex:1;">
+                 <div style="font-weight:bold;">📅 ${formatDate(pt.date)}</div>
+                 ${cHtml}
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                 <span style="font-weight:bold; color:var(--md-on-surface); font-size:14px;">+${fmt(pt.amt)}</span>
+                 <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="deletePartialByKey('${key}', ${pIdx})">✕</button>
+              </div>
+           </div>`;
+       });
+       partialsHtml += '</div>';
+   }
+   
    byId('modalBody').innerHTML = `
+    ${partialsHtml}
     <div class="tabs" style="margin-bottom:16px; background:var(--md-surface-variant); border-radius:12px; padding:4px;">
        <div class="tab active" style="flex:1; text-align:center; border:none; border-radius:8px; background:var(--md-surface); color:var(--md-primary); box-shadow:0 1px 3px rgba(0,0,0,0.1);" onclick="switchCompleteTab('full', this)">Pago Total</div>
        <div class="tab" style="flex:1; text-align:center; border:none; border-radius:8px; color:var(--md-on-surface-variant);" onclick="switchCompleteTab('partial', this)">Abono Parcial</div>
@@ -2918,7 +2995,7 @@ function markCompleted(type, refId, originalDate) {
             <input type="date" id="f_actual_date" value="${today()}" required>
         </div>
         <div class="small" style="color:var(--md-primary); margin-top:8px;">
-            Se marcará como ✔ Completado por el monto total de <b>${fmt(expectedAmt)}</b>.
+            Se marcará como ✔ Completado por el monto restante de <b>${fmt(expectedAmt)}</b>.
         </div>
     </div>
 
@@ -2926,6 +3003,10 @@ function markCompleted(type, refId, originalDate) {
         <div class="grid grid2">
             <div><label>Monto a abonar ($)</label><input type="number" id="f_partial_amt" placeholder="Ej. 30" max="${expectedAmt}" required></div>
             <div><label>Fecha del abono</label><input type="date" id="f_partial_date" value="${today()}" required></div>
+        </div>
+        <div style="margin-top:12px;">
+            <label>Comentario / Referencia (Opcional)</label>
+            <input type="text" id="f_partial_comment" placeholder="Ej. Pago móvil, Efectivo, Banesco...">
         </div>
         <div class="small" style="color:var(--md-primary); margin-top:8px;">
             Se registrará este abono y el resto seguirá como "Pendiente".
@@ -2944,16 +3025,12 @@ function markCompleted(type, refId, originalDate) {
 window.switchCompleteTab = function(mode, el) {
     const parent = el.parentElement;
     parent.querySelectorAll('.tab').forEach(t => {
-        t.classList.remove('active');
-        t.style.background = 'transparent';
-        t.style.color = 'var(--md-on-surface-variant)';
-        t.style.boxShadow = 'none';
+        t.classList.remove('active'); t.style.background = 'transparent';
+        t.style.color = 'var(--md-on-surface-variant)'; t.style.boxShadow = 'none';
     });
     
-    el.classList.add('active');
-    el.style.background = 'var(--md-surface)';
-    el.style.color = 'var(--md-primary)';
-    el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+    el.classList.add('active'); el.style.background = 'var(--md-surface)';
+    el.style.color = 'var(--md-primary)'; el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
 
     byId('tab-comp-full').style.display = mode === 'full' ? 'block' : 'none';
     byId('tab-comp-partial').style.display = mode === 'partial' ? 'block' : 'none';
@@ -3255,11 +3332,15 @@ window.promptCreatePaymentMethod = function(editId = null, isFirstSetup = false,
 };
 
 window.deletePaymentMethod = function(id) {
-    if(confirm('¿Seguro que deseas eliminar este método de pago?')) {
-        const p = prof();
-        p.settings.paymentMethods = p.settings.paymentMethods.filter(c => c.id !== id);
-        saveApp(); renderPaymentMethods();
-    }
+    showDialog({
+        title: 'Eliminar Método',
+        msg: '¿Seguro que deseas eliminar este método de pago?',
+        onConfirm: () => {
+            const p = prof();
+            p.settings.paymentMethods = p.settings.paymentMethods.filter(c => c.id !== id);
+            saveApp(); renderPaymentMethods();
+        }
+    });
 };
 
 window.openCobroWhatsApp = function(debtorPhone, debtorName, amount, groupName) {
@@ -3371,18 +3452,43 @@ function renderTransactions() {
 }
 
 
-// --- NUEVO FILTRO PARA OCULTAR TRANSACCIONES LISTAS ---
-window.hideCompletedEvents = false;
-window.toggleHideCompleted = function() {
-    window.hideCompletedEvents = !window.hideCompletedEvents;
-    const btn = byId('btnHideCompleted');
-    if (btn) {
-        btn.style.background = window.hideCompletedEvents ? 'var(--md-primary)' : 'transparent';
-        btn.style.color = window.hideCompletedEvents ? '#fff' : 'var(--md-on-surface)';
-        btn.innerHTML = window.hideCompletedEvents ? '🙈 Ocultos (Listos)' : '👁️ Ocultar Listos';
+// --- GESTIÓN DE ESTADOS Y POSPONER ---
+window.activeStateFilters = window.activeStateFilters || [];
+
+window.toggleStateFilter = function(t) {
+    if(window.activeStateFilters.includes(t)) {
+        window.activeStateFilters = window.activeStateFilters.filter(x => x !== t);
+    } else {
+        window.activeStateFilters.push(t);
     }
-    renderCalendar();
-    renderListView();
+    renderCalendar(); renderListView(); 
+};
+
+window.clearStateFilters = function() {
+    window.activeStateFilters = [];
+    renderCalendar(); renderListView();
+};
+
+window.promptPostpone = function(type, refId, originalDate) {
+    showDialog({
+        title: 'Posponer Pago',
+        msg: `<div style="text-align:left;">
+                <label>Selecciona la nueva fecha para este pago:</label>
+                <input type="date" id="inpPostpone" value="${today()}" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--md-outline-variant); margin-top:8px;">
+              </div>`,
+        hideCancel: false,
+        onConfirm: () => {
+            const newD = byId('inpPostpone').value;
+            if(newD) {
+                const p = prof();
+                p.overrides = p.overrides || {};
+                const key = type + '_' + refId + '_' + originalDate;
+                const existing = p.overrides[key] || {};
+                p.overrides[key] = { ...existing, actualDate: newD, done: false, userPostponed: true };
+                saveApp(); closeModal(); runPlan(); showToast("Pago pospuesto exitosamente", "🗓️");
+            }
+        }
+    });
 };
 
 // Asegúrate de agregar renderTransactions y renderListView a tu función render()
@@ -3560,7 +3666,8 @@ function runPlan(){
     let customDef = (p.settings.customDebts || []).find(c => c.id === x.type);
     let isCashea = (x.type === 'cashea' || x.type === 'quoota');
     
-    let prefix = x.type === 'cashea' ? 'C - ' : (x.type === 'quoota' ? 'Q - ' : (customDef ? customDef.name.substring(0,2).toUpperCase() + ' - ' : ''));
+    // Eliminamos los prefijos fijos de Cashea y Quoota. Solo dejamos los personalizados.
+    let prefix = customDef ? customDef.name.substring(0,2).toUpperCase() + ' - ' : '';
     x.effectiveColor = x.color || (customDef ? customDef.color : (x.type === 'cashea' ? '#fbbc04' : (x.type === 'quoota' ? '#e8710a' : '#d93025')));
 
     if (isCashea) {
@@ -3823,11 +3930,15 @@ window.promptCreateSavingPlatform = function(editId = null) {
 };
 
 window.deleteSavingPlatform = function(id) {
-    if(confirm('¿Eliminar esta plataforma? Los ahorros ya registrados mantendrán su valor pero perderán el enlace.')) {
-        const p = prof();
-        p.settings.savingPlatforms = p.settings.savingPlatforms.filter(x => x.id !== id);
-        saveApp(); renderSavingPlatforms();
-    }
+    showDialog({
+        title: 'Eliminar Plataforma',
+        msg: '¿Eliminar esta plataforma? Los ahorros ya registrados mantendrán su valor pero perderán el enlace.',
+        onConfirm: () => {
+            const p = prof();
+            p.settings.savingPlatforms = p.settings.savingPlatforms.filter(x => x.id !== id);
+            saveApp(); renderSavingPlatforms();
+        }
+    });
 };
 
 
@@ -4112,6 +4223,7 @@ function openDayModal(dateStr) {
 function showDetails(type, refId, originalDate, planDate) {
      const ev = plan.find(x => x.type === type && x.ref.id === refId && x.originalDate === originalDate && x.date === planDate);
      if(!ev) return;
+     const p = prof(); // 🌟 REPARADO: Declaramos el perfil
      
      modalType = 'details';
      byId('modalTitle').textContent = 'Detalle del Movimiento';
@@ -4128,7 +4240,22 @@ function showDetails(type, refId, originalDate, planDate) {
      
      html += '<div style="font-size:28px; font-weight:900; color:' + colorMonto + '">' + fmt(Math.abs(ev.amt)) + '</div>';
      
-     html += '<div><span class="small">Fecha Planificada:</span><br><b style="font-size:15px">' + formatDate(ev.originalDate) + '</b></div>';
+     // 🌟 REPARACIÓN: Desglose auditivo de fechas en la vista de detalles
+     if (ev.done) {
+         if (ev.originalDate !== ev.date) {
+             html += `<div class="grid grid2">
+                        <div><span class="small">Fecha Planificada:</span><br><b style="font-size:14px; color:var(--md-outline); text-decoration:line-through;">${formatDate(ev.originalDate)}</b></div>
+                        <div><span class="small">Fecha Real de Pago:</span><br><b style="font-size:14px; color:#0f9d58;">✓ ${formatDate(ev.date)}</b></div>
+                      </div>`;
+         } else {
+             html += `<div><span class="small">Pagado el día:</span><br><b style="font-size:15px; color:#0f9d58;">✓ ${formatDate(ev.date)}</b></div>`;
+         }
+     } else {
+         html += '<div><span class="small">Fecha Planificada:</span><br><b style="font-size:15px">' + formatDate(ev.originalDate) + '</b></div>';
+         if (ev.userPostponed || ev.isDelayed) {
+             html += '<div><span class="small">Proyectado para el:</span><br><b style="color:#9c27b0; font-size:15px">' + formatDate(ev.date) + '</b></div>';
+         }
+     }
      
      if (ev.isDelayed) {
          html += '<div><span class="small">Movido por falta de liquidez al:</span><br><b style="color:#9c27b0; font-size:15px">' + formatDate(ev.date) + '</b></div>';
@@ -4137,14 +4264,24 @@ function showDetails(type, refId, originalDate, planDate) {
          html += '<div style="color:#d93025; font-weight:bold; padding:8px; background:#fce8e6; border-radius:8px;">⚠️ Retraso Crítico (Superó 2 ingresos)</div>';
      }
      
-     const override = (p.overrides || {})[type + '_' + refId + '_' + originalDate];
+     const key = type + '_' + refId + '_' + originalDate;
+     const override = (p.overrides || {})[key];
+     
      if (override && override.partials && override.partials.length > 0) {
          html += '<div style="margin-top:12px; background:var(--md-surface-variant); padding:12px; border-radius:12px; border:1px solid var(--md-outline-variant);">';
-         html += '<div class="small" style="font-weight:bold; margin-bottom:8px; color:var(--md-primary);">Abonos Parciales Registrados:</div>';
-         override.partials.forEach(pt => {
-             html += `<div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:13px;">
-                <span>📅 ${formatDate(pt.date)}</span>
-                <span style="font-weight:bold; color:var(--md-on-surface);">${fmt(pt.amt)}</span>
+         html += '<div class="small" style="font-weight:bold; margin-bottom:8px; color:var(--md-primary);">Abonos Parciales Registrados en esta cuota:</div>';
+         
+         override.partials.forEach((pt, pIdx) => {
+             const cHtml = pt.comment ? `<div style="font-size:11px; color:var(--md-on-surface-variant); margin-top:2px;">💬 ${pt.comment}</div>` : '';
+             html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; border-bottom:1px dashed var(--md-outline-variant); padding-bottom:6px;">
+                <div style="flex:1;">
+                   <div style="font-weight:bold;">📅 ${formatDate(pt.date)}</div>
+                   ${cHtml}
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                   <span style="font-weight:bold; color:var(--md-on-surface); font-size:14px;">${fmt(pt.amt)}</span>
+                   <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="deletePartialByKey('${key}', ${pIdx})">✕</button>
+                </div>
              </div>`;
          });
          html += '</div>';
@@ -4155,48 +4292,48 @@ function showDetails(type, refId, originalDate, planDate) {
          html += `<button class="btn danger" style="margin-top:12px; width:100%; border-radius:8px;" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer (Borra abonos y pagos)</button>`;
      } else {
          html += '<hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 8px 0;">';
-         html += `<button class="btn danger" style="margin-bottom:8px; width:100%; background:transparent; color:var(--md-error); border:1px solid var(--md-error);" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer Abonos</button>`;
+         html += `<button class="btn" style="margin-bottom:8px; width:100%; background:var(--md-surface-variant); color:var(--md-on-surface); border:1px solid var(--md-outline-variant);" onclick="promptPostpone('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">🗓️ Posponer para otra fecha</button>`;
+         if (override && override.partials && override.partials.length > 0) {
+             html += `<button class="btn danger" style="margin-bottom:8px; width:100%; background:transparent; color:var(--md-error); border:1px solid var(--md-error);" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer Abonos</button>`;
+         }
          html += '<button class="btn primary" style="width:100%" onclick="markCompleted(\'' + ev.type + '\', \'' + ev.ref.id + '\', \'' + ev.originalDate + '\')">Gestionar / Completar Pago</button>';
      }
      
-     // --- AQUÍ ESTÁ LA NUEVA GALERÍA DE IMÁGENES PARA AHORROS ---
-     if (ev.type === 'savings' && ev.ref) {
-        // 1. Mostrar el comprobante de pago (Transferencia)
-        if (ev.ref.receiptImg || ev.ref.img) {
-            const rImg = ev.ref.receiptImg || ev.ref.img;
-            html += `<div style="margin-top:16px; padding:12px; background:var(--md-surface-variant); border-radius:12px;">
-                        <span class="small" style="font-weight:bold;">Comprobante de Pago:</span><br>
-                        <img src="${rImg}" style="max-width:100%; max-height:150px; border-radius:8px; margin-top:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-                     </div>`;
-        }
-        // 2. Mostrar las fotos de las entregas parciales/completas
-        if (ev.ref.deliveryImgs && ev.ref.deliveryImgs.length > 0) {
-            html += `<div style="margin-top:12px; padding:12px; background:var(--md-surface-variant); border-radius:12px;">
-                        <span class="small" style="font-weight:bold;">Evidencia de Entregas:</span>
-                        <div style="display:flex; gap:8px; overflow-x:auto; margin-top:8px;">`;
-            ev.ref.deliveryImgs.forEach(img => {
-                html += `<img src="${img}" style="max-height:120px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">`;
-            });
-            html += `</div></div>`;
-        }
-     }
-     // ------------------------------------------------------------
-     
      html += '</div>';
-     
      byId('modalBody').innerHTML = html;
      byId('modal').classList.add('active');
 }
 
 window.revertCompleted = function(type, refId, originalDate) {
-    if(confirm("¿Seguro que deseas deshacer este pago? Volverá a descontarse/sumarse de tu saldo actual.")) {
-        const p = prof();
-        const key = type + '_' + refId + '_' + originalDate;
-        if(p.overrides && p.overrides[key]) {
-            delete p.overrides[key];
-            saveApp(); closeModal(); runPlan(); showToast("Pago revertido con éxito", "🔄");
+    showDialog({
+        title: 'Deshacer Pago',
+        msg: '¿Seguro que deseas deshacer este pago? Volverá a descontarse/sumarse de tu saldo actual.',
+        onConfirm: () => {
+            const p = prof();
+            const key = type + '_' + refId + '_' + originalDate;
+            if(p.overrides && p.overrides[key]) {
+                delete p.overrides[key];
+                saveApp(); closeModal(); runPlan(); showToast("Pago revertido con éxito", "🔄");
+            }
         }
-    }
+    });
+};
+
+window.deletePartialByKey = function(key, pIdx) {
+    showDialog({
+        title: 'Eliminar Abono',
+        msg: '¿Seguro que deseas eliminar este abono? El monto volverá a sumarse a tu deuda pendiente.',
+        onConfirm: () => {
+            const p = prof();
+            if(p.overrides && p.overrides[key] && p.overrides[key].partials) {
+                p.overrides[key].partials.splice(pIdx, 1);
+                if(p.overrides[key].partials.length === 0 && !p.overrides[key].done && !p.overrides[key].discarded) {
+                    delete p.overrides[key];
+                }
+                saveApp(); runPlan(); closeModal(); showToast("Abono eliminado con éxito", "🗑️");
+            }
+        }
+    });
 };
 
 // =========================================================================
@@ -4980,11 +5117,14 @@ window.addFromCloud = function(btnElement, targetAlias, targetEmail, targetPhone
     const myEmail = prof().settings.myEmail;
     if (targetEmail === myEmail) return; 
     
-    // Si estaba bloqueado, pedimos confirmación antes de actuar
     if (isUnblocking) {
-        if(!confirm(`¿Deseas desbloquear a ${targetAlias} y enviarle una solicitud de contacto nueva?`)) return;
+        showDialog({
+            title: 'Desbloquear Contacto',
+            msg: `¿Deseas desbloquear a ${targetAlias} y enviarle una solicitud de contacto nueva?`,
+            onConfirm: () => { sendFriendRequest(targetEmail, targetAlias, targetPhone, btnElement); }
+        });
+        return;
     }
-    
     sendFriendRequest(targetEmail, targetAlias, targetPhone, btnElement);
 };
 
@@ -5190,17 +5330,21 @@ window.saveContact = function(alias, email, phone = '') {
 
 // 5. BORRAR/BLOQUEAR CONTACTO DESDE LA AGENDA
 window.deleteContact = function(idx) {
-    if(confirm('¿Eliminar contacto? Desaparecerás de su agenda y él de la tuya.')) {
-        const p = prof();
-        const contactToDrop = p.settings.contacts[idx];
-        if (window.db && p.settings.myEmail && contactToDrop.email) {
-            const friendshipId = [p.settings.myEmail, contactToDrop.email].sort().join('_');
-            db.collection('friendships').doc(friendshipId).set({ status: 'deleted_by_' + p.settings.myEmail });
+    showDialog({
+        title: 'Eliminar Contacto',
+        msg: '¿Eliminar contacto? Desaparecerás de su agenda y él de la tuya.',
+        onConfirm: () => {
+            const p = prof();
+            const contactToDrop = p.settings.contacts[idx];
+            if (window.db && p.settings.myEmail && contactToDrop.email) {
+                const friendshipId = [p.settings.myEmail, contactToDrop.email].sort().join('_');
+                db.collection('friendships').doc(friendshipId).set({ status: 'deleted_by_' + p.settings.myEmail });
+            }
+            p.settings.contacts.splice(idx, 1);
+            saveApp(); renderAgendaContacts();
+            syncUserProfileToCloud();
         }
-        p.settings.contacts.splice(idx, 1);
-        saveApp(); renderAgendaContacts();
-        syncUserProfileToCloud(); // 🌟 NUEVO: Borra el contacto de tu nube
-    }
+    });
 };
 
 window.promptAddContactManual = function() {
@@ -5523,13 +5667,25 @@ function renderCalendar() {
     const dateStr = `${prefixMonth}-${dStr}`;
     const isToday = dateStr === today();
     
+    const todayStr = today();
     const events = plan.filter(e => {
         if (e.date !== dateStr) return false;
         
-        // NUEVO: Oculta los que ya están pagados si el botón está activo
-        if (window.hideCompletedEvents && e.done) return false; 
+        const isOverdue = !e.done && e.originalDate < todayStr;
+        const isPostponed = !e.done && (e.userPostponed || e.isDelayed || e.originalDate !== e.date);
+        const isPending = !e.done && !isOverdue && !isPostponed;
+        const isDone = e.done;
+
+        if (window.activeStateFilters && window.activeStateFilters.length > 0) {
+            let show = false;
+            if (window.activeStateFilters.includes('done') && isDone) show = true;
+            if (window.activeStateFilters.includes('overdue') && isOverdue) show = true;
+            if (window.activeStateFilters.includes('postponed') && isPostponed) show = true;
+            if (window.activeStateFilters.includes('pending') && isPending) show = true;
+            if (!show) return false;
+        }
         
-        if (window.activeOutflowFilters.length > 0) {
+        if (window.activeOutflowFilters && window.activeOutflowFilters.length > 0) {
             if (e.amt > 0 && e.type === 'income') return false; 
             const typeToMatch = e.type === 'expense' ? 'expense' : e.type === 'savings' ? 'savings' : (e.ref?.type || e.type);
             if (!window.activeOutflowFilters.includes(typeToMatch)) return false;
@@ -5549,16 +5705,30 @@ function renderCalendar() {
        else if (e.type === 'savings') color = '#00897b';
        else if (e.type === 'debt' || e.type === 'debt_cut') color = e.ref.effectiveColor || '#d93025'; 
        
+       const isOverdue = !e.done && e.originalDate < todayStr;
+       const isPostponed = !e.done && (e.userPostponed || e.isDelayed || e.originalDate !== e.date);
+       
+       let statusBorder = '';
+       if (e.done) {
+           statusBorder = 'border-left: 3px solid #0f9d58;';
+       } else if (isOverdue) {
+           statusBorder = 'border-left: 3px solid #d93025;';
+       } else if (isPostponed) {
+           statusBorder = 'border-left: 3px solid #9c27b0;';
+       } else {
+           statusBorder = 'border-left: 3px solid #e8710a;';
+       }
+
        let finalLabel = e.label;
-       // Si ya se pagó pero en una fecha distinta a la original, agregamos (Plan: DD/MM)
        if (e.done && e.originalDate !== e.date) {
            const shortDate = e.originalDate.split('-')[2] + '/' + e.originalDate.split('-')[1];
            finalLabel += ` (Plan: ${shortDate})`;
        }
        
        const prefix = e.isDelayed ? 'pp - ' : '';
-       html += `<div class="evt" style="color:${color}; border-color:${color}30; background:${color}10; cursor:pointer;" onclick="event.stopPropagation(); showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">${prefix}${finalLabel}</div>`;
-    });
+       // Eliminamos el statusIcon y ajustamos el padding-left a 2px
+       html += `<div class="evt" style="color:${color}; border-color:${color}30; background:${color}10; ${statusBorder} cursor:pointer; padding-left:2px;" onclick="event.stopPropagation(); showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">${prefix}${finalLabel}</div>`;
+	});
 
     if (events.length > 3) html += `<div style="text-align:right; font-size:10px; font-weight:900; color:var(--md-on-surface-variant); margin-top:2px;">+${events.length - 3}</div>`;
     html += '</div>';
@@ -5584,16 +5754,48 @@ function renderCalendar() {
       if(window.activeOutflowFilters.length > 0) html += `<button class="btn danger" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; border:none;" onclick="clearCalOutflowFilters()">✕ Limpiar Filtros</button>`;
       html += '</div>';
   }
+  
+  // Agregamos los filtros de estado al final del calendario
+  html += '<hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">';
+  html += '<div class="small" style="margin-bottom:8px; font-weight:bold;">Filtrar por Estado de Pago:</div>';
+  html += '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
+  const states = [
+      { id: 'pending', name: '🔴 Pendientes' },
+      { id: 'overdue', name: '⚠️ Atrasados' },
+      { id: 'postponed', name: '🔄 Pospuestos' },
+      { id: 'done', name: '✅ Listos' }
+  ];
+  states.forEach(s => {
+      const isActive = window.activeStateFilters && window.activeStateFilters.includes(s.id);
+      const bg = isActive ? 'var(--md-primary)' : 'var(--md-surface-variant)';
+      const col = isActive ? '#fff' : 'var(--md-on-surface-variant)';
+      const border = isActive ? 'var(--md-primary)' : 'var(--md-outline-variant)';
+      html += `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleStateFilter('${s.id}')">${s.name}</button>`;
+  });
+  if(window.activeStateFilters && window.activeStateFilters.length > 0) html += `<button class="btn danger" style="padding:6px 12px; min-height:0; width:auto; border-radius:16px; font-size:12px; border:none;" onclick="clearStateFilters()">✕ Limpiar Estado</button>`;
+  html += '</div>';
+
   byId('calendarWrap').innerHTML = html;
 }
 
 function renderListView() {
-    const todayStr = today(); // 🌟 LÍNEA REPARADA: Declaramos qué día es hoy
+    const todayStr = today(); 
     const txt = (byId('filterText').value || '').toLowerCase();
     
     let filtered = plan.filter(e => {
-        // NUEVO: Ocultar los completados si el filtro global está encendido
-        if (window.hideCompletedEvents && e.done) return false;
+        const isOverdue = !e.done && e.originalDate < todayStr;
+        const isPostponed = !e.done && (e.userPostponed || e.isDelayed || e.originalDate !== e.date);
+        const isPending = !e.done && !isOverdue && !isPostponed;
+        const isDone = e.done;
+
+        if (window.activeStateFilters && window.activeStateFilters.length > 0) {
+            let show = false;
+            if (window.activeStateFilters.includes('done') && isDone) show = true;
+            if (window.activeStateFilters.includes('overdue') && isOverdue) show = true;
+            if (window.activeStateFilters.includes('postponed') && isPostponed) show = true;
+            if (window.activeStateFilters.includes('pending') && isPending) show = true;
+            if (!show) return false;
+        }
         
         if (txt && !e.label.toLowerCase().includes(txt)) return false;
         if (window.activeOutflowFilters && window.activeOutflowFilters.length > 0) {
@@ -5616,7 +5818,7 @@ function renderListView() {
     let chipsHtml = '';
     if (pendingOutflowTypes.size > 0) {
         pendingOutflowTypes.forEach(t => {
-            let name = t === 'expense' ? 'Gastos' : t === 'savings' ? 'Ahorros/Divisas' : t === 'cashea' ? 'Cashea' : t === 'quoota' ? 'Quoota' : t === 'credit' ? 'Crédito' : t === 'card' ? 'Tarjetas' : t === 'fixed' ? 'Préstamos' : t === 'noloan' ? 'Sin Interés' : t === 'debt_cut' ? 'Cortes' : ((p.settings.customDebts || []).find(c => c.id === t)?.name || t);
+            let name = t === 'expense' ? 'Gastos' : t === 'savings' ? 'Ahorros' : t === 'cashea' ? 'Cashea' : t === 'quoota' ? 'Quoota' : t === 'credit' ? 'Crédito' : t === 'card' ? 'Tarjetas' : t === 'fixed' ? 'Préstamos' : t === 'noloan' ? 'Sin Interés' : t === 'debt_cut' ? 'Cortes' : ((p.settings.customDebts || []).find(c => c.id === t)?.name || t);
             const isActive = window.activeOutflowFilters && window.activeOutflowFilters.includes(t);
             const bg = isActive ? 'var(--md-primary)' : 'var(--md-surface-variant)';
             const col = isActive ? '#fff' : 'var(--md-on-surface-variant)';
@@ -5624,24 +5826,40 @@ function renderListView() {
 
             chipsHtml += `<button class="btn" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleCalOutflowFilter('${t}')">${name}</button>`;
         });
+    }
+    
+    if (chipsHtml !== '') chipsHtml += '<div style="width:100%; height:8px;"></div>';
+    
+    // Dibujamos SIEMPRE los botones de estado
+    const states = [
+        { id: 'pending', name: '🔴 Pendientes' },
+        { id: 'overdue', name: '⚠️ Atrasados' },
+        { id: 'postponed', name: '🔄 Pospuestos' },
+        { id: 'done', name: '✅ Listos' }
+    ];
+    states.forEach(s => {
+        const isActive = window.activeStateFilters && window.activeStateFilters.includes(s.id);
+        const bg = isActive ? 'var(--md-primary)' : 'var(--md-surface-variant)';
+        const col = isActive ? '#fff' : 'var(--md-on-surface-variant)';
+        const border = isActive ? 'var(--md-primary)' : 'var(--md-outline-variant)';
+        chipsHtml += `<button class="btn" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; background:${bg}; color:${col}; border:1px solid ${border};" onclick="toggleStateFilter('${s.id}')">${s.name}</button>`;
+    });
 
-        if (window.activeOutflowFilters && window.activeOutflowFilters.length > 0) chipsHtml += `<button class="btn danger" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; border:none;" onclick="clearCalOutflowFilters()">✕ Limpiar</button>`;
+    // El botón "Limpiar" solo aparece si hay filtros activos
+    if (window.activeStateFilters && window.activeStateFilters.length > 0) {
+        chipsHtml += `<button class="btn danger" style="padding:4px 10px; min-height:0; width:auto; border-radius:16px; font-size:11px; border:none;" onclick="clearStateFilters()">✕ Limpiar Estado</button>`;
     }
     
     let listChipsDiv = byId('listDebtChips');
-    if(!listChipsDiv) {
-        byId('listView').insertAdjacentHTML('afterbegin', '<div id="listDebtChips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;"></div>');
-        listChipsDiv = byId('listDebtChips');
-    }
-    listChipsDiv.innerHTML = chipsHtml;
+    if(listChipsDiv) listChipsDiv.innerHTML = chipsHtml;
 
     if (filtered.length === 0) {
         byId('listWrap').innerHTML = '<div class="small" style="text-align:center; padding:24px; background:var(--md-surface-variant); border-radius:12px;">No hay movimientos bajo estos filtros.</div>';
         return;
     }
     
-    // Agregamos las dos columnas de fechas
-    let html = '<table class="table" style="font-size:12px;"><thead><tr><th>Plan</th><th>Pago</th><th>Concepto</th><th>Monto</th><th style="text-align:right">Saldo Restante</th></tr></thead><tbody>';
+    // 🌟 OPTIMIZACIÓN: Unificamos a 4 columnas y reducimos la fuente de las fechas a 11px
+    let html = '<table class="table" style="font-size:13px; table-layout:fixed; width:100%;"><thead><tr><th style="width:28%">Fecha / Pago</th><th style="width:42%">Concepto</th><th style="width:15%">Monto</th><th style="text-align:right; width:15%">Saldo</th></tr></thead><tbody>';
     
     filtered.forEach((e, idx) => {
          let color = '#49454f';
@@ -5654,36 +5872,50 @@ function renderListView() {
          
          const prefix = e.isDelayed ? 'pp - ' : '';
          
-         // Lógica para determinar qué mostrar en la columna "Pago"
-         let estadoPago = '⏳ Pend.';
-         if (e.done) estadoPago = `<span style="color:#0f9d58; font-weight:bold;">${formatDate(e.date)}</span>`;
-         else if (e.isDelayed) estadoPago = `<span style="color:#9c27b0; font-size:10px;">Proy: ${formatDate(e.date).substring(0,5)}</span>`;
-         else if (e.originalDate < todayStr) estadoPago = `<span style="color:#e8710a; font-size:10px; font-weight:bold;">⚠️ Atrasado</span>`;
+         // 🌟 LÓGICA DE COLUMNA ÚNICA INTELIGENTE
+         let fechaColHtml = '';
+         if (e.done) {
+             // Si se pagó un día diferente al plan, muestra ambos de forma compacta
+             if (e.originalDate !== e.date) {
+                 fechaColHtml = `<div style="color:#0f9d58; font-weight:bold; font-size:11px;">✅ ${formatDate(e.date)}</div>
+                                 <div style="color:var(--md-outline); font-size:10px; margin-top:2px;">(Plan: ${formatDate(e.originalDate).substring(0,5)})</div>`;
+             } else {
+                 fechaColHtml = `<div style="color:#0f9d58; font-weight:bold; font-size:11px;">✅ ${formatDate(e.date)}</div>`;
+             }
+         } else {
+             if (e.userPostponed || e.isDelayed) {
+                 fechaColHtml = `<div style="color:#9c27b0; font-weight:bold; font-size:11px;">🔄 ${formatDate(e.date)}</div>
+                                 <div style="color:var(--md-outline); font-size:10px; margin-top:2px;">(Orig: ${formatDate(e.originalDate).substring(0,5)})</div>`;
+             } else if (e.originalDate < todayStr) {
+                 fechaColHtml = `<div style="color:#d93025; font-weight:bold; font-size:11px;">⚠️ ${formatDate(e.originalDate)}</div>
+                                 <div style="color:#d93025; font-size:10px; font-weight:bold; margin-top:2px;">Atrasado</div>`;
+             } else {
+                 fechaColHtml = `<div style="color:var(--md-on-surface); font-size:11px;">🗓️ ${formatDate(e.originalDate)}</div>`;
+             }
+         }
          
          html += `<tr style="cursor:pointer;" onclick="showDetails('${e.type}', '${e.ref.id}', '${e.originalDate}', '${e.date}')">
-            <td style="white-space:nowrap">${formatDate(e.originalDate)}</td>
-            <td style="white-space:nowrap">${estadoPago}</td>
-            <td><div style="color:${color}; font-weight:bold;">${prefix}${e.label}</div></td>
-            <td style="font-weight:bold; color:${e.amt>0?'#0f9d58':(e.criticalDelay?'#d93025':'var(--md-on-surface)')}">${fmt(Math.abs(e.amt))}</td>
-            <td style="text-align:right; font-weight:bold; color:var(--md-primary);">${fmt(e.balance)}</td>
+            <td style="padding:10px 4px; vertical-align:middle; line-height:1.2;">${fechaColHtml}</td>
+            <td style="padding:10px 4px; font-weight:bold; color:${color}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${prefix}${e.label}</td>
+            <td style="padding:10px 4px; font-weight:bold; color:${e.amt>0?'#0f9d58':(e.criticalDelay?'#d93025':'var(--md-on-surface)')}">${fmt(Math.abs(e.amt))}</td>
+            <td style="padding:10px 4px; text-align:right; font-weight:bold; color:var(--md-outline); font-size:12px;">${fmt(e.balance)}</td>
          </tr>`;
 
-         const nxt = filtered[idx + 1];
-         if (nxt && nxt.type === 'income' && e.type !== 'income') {
-             // Ajustamos el colspan a 5 porque ahora hay 5 columnas
-             html += `<tr style="background:var(--md-primary-container); pointer-events:none;">
-                <td colspan="5" style="text-align:right; padding:8px 10px; font-size:11px; font-weight:bold; color:var(--md-primary); border-bottom:2px dashed var(--md-primary);">
-                    ➔ Saldo libre antes de cobrar "${nxt.label}": ${fmt(e.balance)}
-                </td>
-             </tr>`;
+         if (window.activeStateFilters.length === 0) {
+             const nxt = filtered[idx + 1];
+             if (nxt && nxt.type === 'income' && e.type !== 'income') {
+                 html += `<tr style="background:var(--md-primary-container); pointer-events:none;">
+                    <td colspan="4" style="text-align:right; padding:8px 10px; font-size:11px; font-weight:bold; color:var(--md-primary); border-bottom:2px dashed var(--md-primary);">
+                        ➔ Saldo libre antes de cobrar "${nxt.label}": ${fmt(e.balance)}
+                    </td>
+                 </tr>`;
+             }
          }
     });
 	
 	html += '</tbody></table>';
-    
     byId('listWrap').innerHTML = html;
 }
-
 
 window.actionP2P = function(loanId, action) {
     const loan = window.p2pData.find(x => x.id === loanId);
