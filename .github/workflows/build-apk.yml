@@ -78,18 +78,16 @@ jobs:
       # 🌟 BLINDAJE DE RED: Inyectamos los permisos de hardware, alarmas y desatascamos el tráfico cleartext de red
       - name: Inyectar Permisos Nativos de Android
         run: |
-          echo "Añadiendo permisos y habilitando tráfico de red claro..."
+          echo "Añadiendo permisos nativos..."
+          # Solo añadimos los permisos que Capacitor NO incluye de serie
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.CAMERA" />' android/app/src/main/AndroidManifest.xml
-          sed -i '/<\/manifest>/i \    <uses-feature android:name="android.hardware.camera" android:required="false" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />' android/app/src/main/AndroidManifest.xml
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />' android/app/src/main/AndroidManifest.xml
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' android/app/src/main/AndroidManifest.xml
           
-          # Habilita usos de Long Polling forzando usesCleartextTraffic en la aplicación nativa
-          sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' android/app/src/main/AndroidManifest.xml
+          # Corrección de sintaxis: solo añadimos el atributo si no existe
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
 
       # 🌟 PASO CRUCIAL: Ejecutamos cap sync con todos los archivos modificados en su lugar final
       - name: Sync Capacitor Project
@@ -106,7 +104,6 @@ jobs:
           $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks monywissen-release.jks \
             --ks-pass pass:"monywissen" \
             --ks-key-alias "monywissen" \
-            --ks-pass pass:"monywissen" \
             --key-pass pass:"monywissen" \
             android/app/build/outputs/apk/release/app-release-unsigned.apk
           

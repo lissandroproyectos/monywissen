@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.1.1" />
+<meta name="app-version" content="1.1.2" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-busqueda en la red" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -1114,11 +1114,29 @@ const fbCheck = setInterval(() => {
             firebase.initializeApp(firebaseConfig);
             window.db = firebase.firestore();
             
-            // 🌟 PARCHE MAESTRO PARA APK: Forzar HTTP estándar sobre gRPC streams
-            window.db.settings({ experimentalForceLongPolling: true });
+            // 🌟 PARCHE MAESTRO PARA APK
+            // experimentalForceLongPolling: OBLIGATORIO para evitar bloqueos del WebView de Android
+            // persistence: Habilita el caché local robusto para que la app no pierda datos si la red parpadea
+            try {
+                window.db.settings({ 
+                    experimentalForceLongPolling: true,
+                    persistence: true 
+                });
+                // Habilitamos la persistencia específicamente para entornos web/híbridos
+                window.db.enablePersistence({ synchronizeTabs: true })
+                    .catch((err) => {
+                        if (err.code == 'failed-precondition') {
+                            console.warn("Persistencia no disponible: múltiples pestañas abiertas.");
+                        } else if (err.code == 'unimplemented') {
+                            console.warn("Persistencia no soportada en este navegador.");
+                        }
+                    });
+            } catch (e) {
+                console.error("Error al configurar ajustes de Firestore:", e);
+            }
             
             window.auth = firebase.auth();
-            console.log("🔥 Firebase conectado en modo Híbrido");
+            console.log("🔥 Firebase conectado en modo Híbrido (Persistencia Activada)");
             initFirebaseAuth(); 
         }
     }
