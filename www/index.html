@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.3.9" />
+<meta name="app-version" content="1.1.0" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-busqueda en la red" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -1108,15 +1108,18 @@ window.pushGroupToCloud = function(accObj) {
 // INICIALIZACIÓN DE FIREBASE (BLINDADA CONTRA CONDICIONES DE CARRERA)
 // =========================================================================
 const fbCheck = setInterval(() => {
-    // Exigimos que los 3 módulos estén definidos en memoria antes de arrancar
     if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'undefined' && typeof firebase.auth !== 'undefined') {
         clearInterval(fbCheck);
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
             window.db = firebase.firestore();
+            
+            // 🌟 PARCHE MAESTRO PARA APK: Forzar HTTP estándar sobre gRPC streams
+            window.db.settings({ experimentalForceLongPolling: true });
+            
             window.auth = firebase.auth();
             console.log("🔥 Firebase conectado en modo Híbrido");
-            initFirebaseAuth(); // Arrancamos el motor de seguridad
+            initFirebaseAuth(); 
         }
     }
 }, 200);
@@ -1358,7 +1361,97 @@ function switchSettingsTab(tabId, el) {
    el.classList.add('active');
    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
    byId(tabId).classList.add('active');
+
+   // 🌟 CERTIFICACIÓN ANTICIPADA: Al tocar la pestaña de respaldos, escaneamos la red
+   if (tabId === 'tab-db') {
+       checkCloudConnection();
+   }
 }
+
+window.checkCloudConnection = async function() {
+    const p = prof();
+    const card = byId('syncCard');
+    const title = byId('syncCardTitle');
+    const desc = byId('syncCardDesc');
+    
+    if (!card || !p.settings.myEmail || !window.db) return;
+
+    // Colocamos la tarjeta en modo de espera
+    card.style.background = 'var(--md-primary-container)';
+    card.style.border = '1px solid var(--md-outline-variant)';
+    title.style.color = 'var(--md-primary)';
+    desc.innerHTML = '⏳ <b>Verificando certificación con la nube...</b>';
+    desc.style.color = 'var(--md-on-surface-variant)';
+
+    try {
+        if (!navigator.onLine) throw new Error("offline");
+        
+        // Despierta el canal de red de Firebase por si Android lo mandó a dormir
+        await db.enableNetwork();
+
+        // Lanzamos un PING ultrarrápido de 3 segundos directo al servidor
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000));
+        await Promise.race([db.collection('users').doc(p.settings.myEmail).get({ source: 'server' }), timeoutPromise]);
+
+        // 🟢 CONEXIÓN CERTIFICADA (Verde)
+        card.style.background = '#e6f4ea'; 
+        card.style.border = '1px solid #0f9d58';
+        title.style.color = '#0f9d58';
+        desc.innerHTML = '✅ <b>Conexión Certificada.</b> Tienes enlace directo y activo con la base de datos de Firebase.';
+        desc.style.color = '#0f9d58';
+        
+    } catch (err) {
+        console.warn("Fallo de ping en pestaña:", err.message);
+        
+        // 🍊 SIN CONEXIÓN (Mandarina claro)
+        card.style.background = '#fff3e0'; 
+        card.style.border = '1px solid #ff9800';
+        title.style.color = '#e65100';
+        desc.innerHTML = '⚠️ <b>Sin conexión con la base de datos.</b> No hay respuesta del servidor en este momento. Revisa tu internet o intenta sincronizar para forzar un reinicio de red.';
+        desc.style.color = '#e65100';
+    }
+};
+
+window.checkCloudConnection = async function() {
+    const p = prof();
+    const card = byId('syncCard');
+    const title = byId('syncCardTitle');
+    const desc = byId('syncCardDesc');
+    
+    if (!card || !p.settings.myEmail || !window.db) return;
+
+    // 1. Ponemos la tarjeta en estado de "Buscando..."
+    card.style.background = 'var(--md-primary-container)';
+    card.style.border = '1px solid var(--md-outline-variant)';
+    title.style.color = 'var(--md-primary)';
+    desc.innerHTML = '⏳ <b>Verificando conexión con la nube...</b>';
+    desc.style.color = 'var(--md-on-surface-variant)';
+
+    try {
+        if (!navigator.onLine) throw new Error("offline");
+        
+        // 2. Disparamos un "Ping" rápido al servidor con límite de 5 segundos
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
+        await Promise.race([db.collection('users').doc(p.settings.myEmail).get({ source: 'server' }), timeoutPromise]);
+
+        // 3. ÉXITO: Firebase respondió rápido, el túnel está perfecto
+        card.style.background = '#e6f4ea'; 
+        card.style.border = '1px solid #0f9d58';
+        title.style.color = '#0f9d58';
+        desc.innerHTML = '✅ <b>Conexión Certificada.</b> Tu enlace con Firebase está activo y listo.';
+        desc.style.color = '#0f9d58';
+        
+    } catch (err) {
+        console.warn("Verificación anticipada falló:", err.message);
+        
+        // 4. FRACASO: Túnel dormido por Android o sin internet real
+        card.style.background = '#fff3e0'; // Mandarina claro
+        card.style.border = '1px solid #ff9800';
+        title.style.color = '#e65100';
+        desc.innerHTML = '⚠️ <b>Sin conexión certificada.</b> El túnel de red está inactivo. Si le das a Sincronizar, forzaremos un reinicio del motor.';
+        desc.style.color = '#e65100';
+    }
+};
 
 // --- Gestión de Perfiles ---
 function initProfiles(){
