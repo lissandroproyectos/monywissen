@@ -75,23 +75,24 @@ jobs:
               </style>
           </resources>' > android/app/src/main/res/values/styles.xml
 
-      # 🌟 BLINDAJE DE RED: Inyectamos los permisos de hardware, alarmas y desatascamos el tráfico cleartext de red
+      # 🌟 PASO 1: Ejecutamos cap sync PRIMERO para que Capacitor construya el proyecto base
+      - name: Sync Capacitor Project
+        run: npx cap sync android
+
+      # 🌟 PASO 2: Inyectamos los permisos DESPUÉS de sincronizar para que no se borren
       - name: Inyectar Permisos Nativos de Android
         run: |
           echo "Añadiendo permisos nativos..."
-          # Solo añadimos los permisos que Capacitor NO incluye de serie
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.CAMERA" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' android/app/src/main/AndroidManifest.xml
           
-          # Corrección de sintaxis: solo añadimos el atributo si no existe
-          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
-
-      # 🌟 PASO CRUCIAL: Ejecutamos cap sync con todos los archivos modificados en su lugar final
-      - name: Sync Capacitor Project
-        run: npx cap sync android
+          # Habilita tráfico Cleartext
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' android/app/src/main/AndroidManifest.xml
 
       - name: Build APK (Release)
         run: |

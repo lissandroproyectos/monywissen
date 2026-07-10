@@ -3,8 +3,8 @@
   "appName": "Monywissen",
   "webDir": "www",
   "plugins": {
-	"CapacitorHttp": {
-      "enabled": true
+    "CapacitorHttp": {
+      "enabled": false
     },
     "GoogleAuth": {
       "scopes": ["profile", "email"],
