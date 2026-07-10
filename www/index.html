@@ -7,9 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.3.6" />
+<meta name="app-version" content="1.3.8" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
-<meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-pgos parciales" />
+<meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-busqueda en la red" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
 
 <title>Monywissen</title>
@@ -955,39 +955,44 @@ window.promptFirstSetup = function(email) {
             <div style="text-align:left; gap:12px; display:flex; flex-direction:column; font-size:13px;">
                 <div style="color:var(--md-primary); font-weight:bold;">${email}</div>
                 <div class="small">Para que tus amigos puedan encontrarte, completa estos datos:</div>
-                <div><label>Crea un Alias (Mín. 5 letras):</label><input id="setupAlias" style="padding:10px; font-size:14px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid var(--md-outline-variant);" required></div>
+                <div><label>Crea un Alias (Mín. 5 letras, debe ser ÚNICO):</label><input id="setupAlias" style="padding:10px; font-size:14px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid var(--md-outline-variant);" required></div>
                 <div><label>Teléfono (Mín. 10 dígitos):</label><input id="setupPhone" type="tel" style="padding:10px; font-size:14px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid var(--md-outline-variant);" required></div>
             </div>
         `,
         hideCancel: true,
-        onConfirm: () => {
+        onConfirm: async () => {
             const alias = byId('setupAlias').value.trim();
             const phoneInput = byId('setupPhone').value.trim();
 
-            if(!alias || !phoneInput) {
-                showToast("Ambos campos son obligatorios.", "⚠️");
-                return promptFirstSetup(email); 
-            }
-
-            if (alias.length < 5) {
-                showToast("El Alias debe tener al menos 5 caracteres.", "⚠️");
-                return promptFirstSetup(email);
-            }
+            if(!alias || !phoneInput) { showToast("Ambos campos son obligatorios.", "⚠️"); return promptFirstSetup(email); }
+            if (alias.length < 5) { showToast("El Alias debe tener al menos 5 caracteres.", "⚠️"); return promptFirstSetup(email); }
 
             const digitosTotales = phoneInput.replace(/\D/g, '').length;
-            if (digitosTotales < 10) {
-                showToast("El teléfono debe tener al menos 10 dígitos.", "⚠️");
-                return promptFirstSetup(email);
+            if (digitosTotales < 10) { showToast("El teléfono debe tener al menos 10 dígitos.", "⚠️"); return promptFirstSetup(email); }
+
+            // 🌟 VERIFICACIÓN DE UNICIDAD EN LA NUBE
+            if (window.db) {
+                showToast("Verificando disponibilidad del Alias...", "⏳");
+                try {
+                    const snap = await db.collection('users').where('alias_lower', '==', alias.toLowerCase()).get();
+                    // Si encontramos un usuario que tenga este alias y NO seas tú mismo, lo rechazamos
+                    const isTaken = snap.docs.some(doc => doc.id !== email);
+                    if (isTaken) {
+                        showDialog({title:'Alias Ocupado', msg:'Ese alias ya está en uso. Por favor, intenta agregarle tu apellido o algunos números.', hideCancel:true, onConfirm: () => promptFirstSetup(email)});
+                        return;
+                    }
+                } catch(e) {
+                    showToast("Error al verificar en la nube. Revisa tu internet.", "❌"); return promptFirstSetup(email);
+                }
             }
 
-            // 🌟 MAGIA: Renombrar el perfil activo al nuevo Alias
             const oldProfileName = currentProfile;
             if (app.profiles[oldProfileName] && oldProfileName !== alias && !app.profiles[alias]) {
                 app.profiles[alias] = app.profiles[oldProfileName];
                 delete app.profiles[oldProfileName];
                 app.currentProfile = alias;
                 currentProfile = alias;
-                initProfiles(); // Actualiza el selector visualmente
+                initProfiles(); 
             }
 
             const p = prof();
@@ -1217,9 +1222,9 @@ function updateAvatarInitials() {
 window.renameAlias = function() {
     const p = prof(); p.settings = p.settings || {};
     showDialog({
-        title: 'Tu Alias', msg: 'Ingresa el apodo con el que te identificas en los grupos (Mínimo 5 letras):',
+        title: 'Tu Alias', msg: 'Ingresa el apodo con el que te identificas (Mínimo 5 letras, debe ser ÚNICO):',
         input: true, inputValue: p.settings.myAlias || '', hideCancel: false,
-        onConfirm: (val) => {
+        onConfirm: async (val) => {
             const alias = val.trim();
             
             if (alias.length < 5) {
@@ -1227,7 +1232,21 @@ window.renameAlias = function() {
                 return window.renameAlias(); 
             }
 
-            // 🌟 MAGIA: Si cambia el alias, cambiamos el nombre del perfil también
+            // 🌟 VERIFICACIÓN DE UNICIDAD EN LA NUBE
+            if (window.db) {
+                showToast("Verificando disponibilidad...", "⏳");
+                try {
+                    const snap = await db.collection('users').where('alias_lower', '==', alias.toLowerCase()).get();
+                    const isTaken = snap.docs.some(doc => doc.id !== p.settings.myEmail);
+                    if (isTaken) {
+                        showDialog({title:'Alias Ocupado', msg:'Ese alias ya le pertenece a otra persona en Monywissen. Por favor intenta con otro distinto (Ej. agregando un número o apellido).', hideCancel:true, onConfirm: () => window.renameAlias()});
+                        return;
+                    }
+                } catch(e) {
+                    showToast("Error al conectar con la nube.", "❌"); return;
+                }
+            }
+
             const oldProfileName = currentProfile;
             if (app.profiles[oldProfileName] && oldProfileName !== alias && !app.profiles[alias]) {
                 app.profiles[alias] = app.profiles[oldProfileName];
@@ -1237,13 +1256,14 @@ window.renameAlias = function() {
                 initProfiles(); 
             }
 
-            const newP = prof(); // Refrescamos la variable porque el perfil cambió de lugar
+            const newP = prof(); 
             newP.settings.myAlias = alias; 
             saveApp();
             syncUserProfileToCloud(); 
             
             if (byId('lblCurrentAlias')) byId('lblCurrentAlias').textContent = newP.settings.myAlias || 'Sin Alias';
             if (byId('lblCurrentProfileName')) byId('lblCurrentProfileName').textContent = currentProfile;
+            showToast("Alias actualizado con éxito.", "✅");
         }
     });
 };
@@ -5039,7 +5059,7 @@ window.executeCloudSearch = function() {
     const inputEl = byId('cloudSearchInput');
     if (!inputEl) return;
     
-    // 🌟 Aseguramos minúsculas estrictas para evitar fallos de teclado en el APK
+    // Convertimos a minúscula para que no importe si el teclado de Android pone mayúscula inicial
     const term = inputEl.value.trim().toLowerCase();
     if(!term) return;
 
@@ -5059,11 +5079,13 @@ window.executeCloudSearch = function() {
         const formattedPhone = formatSmartPhone(term);
         query = db.collection('users').where('phone', '==', formattedPhone);
     } else {
-        // 🌟 REPARACIÓN APK NATIVA: Usamos ordenamiento indexado startAt/endAt en lugar de \uf8ff
+        // 🌟 REPARACIÓN DEFINITIVA PARA APK ANDROID (Algoritmo de prefijo matemático)
+        // Ejemplo: Si buscas "adan", esto buscará todo lo que esté entre "adan" (incluido) y "adao" (excluido)
+        const endTerm = term.slice(0, -1) + String.fromCharCode(term.charCodeAt(term.length - 1) + 1);
+        
         query = db.collection('users')
-                  .orderBy('alias_lower')
-                  .startAt(term)
-                  .endAt(term + '\z') // '\z' es un terminador de string mucho más seguro y compatible con Android nativo
+                  .where('alias_lower', '>=', term)
+                  .where('alias_lower', '<', endTerm)
                   .limit(10);
     }
 
