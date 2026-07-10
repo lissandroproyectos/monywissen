@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.3.5" />
+<meta name="app-version" content="1.3.6" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="- Correccion de pagos parciales.<br>- Corrección de proyecciones de gastos personales.<br>-pgos parciales" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -5036,13 +5036,18 @@ window.closeCloudSearchModal = function() {
 };
 
 window.executeCloudSearch = function() {
-    const term = byId('cloudSearchInput').value.trim().toLowerCase();
+    const inputEl = byId('cloudSearchInput');
+    if (!inputEl) return;
+    
+    // 🌟 Aseguramos minúsculas estrictas para evitar fallos de teclado en el APK
+    const term = inputEl.value.trim().toLowerCase();
     if(!term) return;
 
     const resContainer = byId('cloudSearchResults');
+    if (!resContainer) return;
+    
     resContainer.innerHTML = '<div class="small" style="text-align:center; padding:16px;">Buscando en la red... ⏳</div>';
 
-    // 🧠 Inteligencia: Detectar qué tipo de dato ingresó el usuario
     const isEmail = term.includes('@');
     const isPhone = term.startsWith('+') || /^\d+$/.test(term.replace(/[^\d]/g, ''));
     
@@ -5054,9 +5059,11 @@ window.executeCloudSearch = function() {
         const formattedPhone = formatSmartPhone(term);
         query = db.collection('users').where('phone', '==', formattedPhone);
     } else {
+        // 🌟 REPARACIÓN APK NATIVA: Usamos ordenamiento indexado startAt/endAt en lugar de \uf8ff
         query = db.collection('users')
-                  .where('alias_lower', '>=', term)
-                  .where('alias_lower', '<=', term + '\uf8ff')
+                  .orderBy('alias_lower')
+                  .startAt(term)
+                  .endAt(term + '\z') // '\z' es un terminador de string mucho más seguro y compatible con Android nativo
                   .limit(10);
     }
 
@@ -5073,7 +5080,6 @@ window.executeCloudSearch = function() {
                 const u = doc.data();
                 const otherEmail = u.email;
 
-                // 🛡️ REGLA 1: Si él te bloqueó, lo ignoramos por completo (Invisibilidad)
                 if (window.blockedByThem && window.blockedByThem.includes(otherEmail)) return;
 
                 let btnHtml = '';
@@ -5085,7 +5091,6 @@ window.executeCloudSearch = function() {
                 if (isMe) {
                     btnHtml = `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:11px; background:var(--md-surface-variant); color:var(--md-primary); border:none;" disabled>✅ Eres Tú</button>`;
                 } else if (isBlockedByMe) {
-                    // 🛡️ REGLA 2: Si tú lo bloqueaste, le muestras el botón para desbloquear
                     btnHtml = `<button class="btn danger" style="padding:6px 12px; min-height:0; width:auto; font-size:11px;" onclick="addFromCloud(this, '${u.alias.replace(/'/g, "\\'")}', '${otherEmail}', '${u.phone || ''}', true)">🔓 Desbloquear</button>`;
                 } else if (isContact) {
                     btnHtml = `<button class="btn" style="padding:6px 12px; min-height:0; width:auto; font-size:11px; background:var(--md-surface-variant); color:#0f9d58; border:none;" disabled>✅ En Agenda</button>`;
@@ -5108,7 +5113,7 @@ window.executeCloudSearch = function() {
             resContainer.innerHTML = resHtml;
         }
     }).catch(e => {
-        console.error(e);
+        console.error("Error en búsqueda Cloud:", e);
         resContainer.innerHTML = '<div class="small" style="text-align:center; color:var(--md-error); padding:16px;">Error al buscar. Revisa tu conexión a internet.</div>';
     });
 };
