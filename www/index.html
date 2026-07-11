@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.1.7" />
+<meta name="app-version" content="1.1.8" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="<br>- Nuevo modulo de registro de prestamos.<br>- busqueda en la red.<br>- Plantillas de deudas" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -4071,15 +4071,14 @@ function editSavingsTotal() {
 }
 
 function deleteCurrent() {
-  showDialog({
-    title: 'Eliminar Registro',
-    msg: '¿Estás seguro de eliminar este registro permanentemente?',
-    onConfirm: () => {
-      const p = prof();
-      
-      if (modalType === 'sharedAccount') {
-          // Limpieza profunda: Borramos todas las transacciones vinculadas a este grupo
-          const acc = p.sharedAccounts[modalIndex];
+  const p = prof();
+  
+  if (modalType === 'sharedAccount') {
+      const acc = p.sharedAccounts[modalIndex];
+      const myAlias = p.settings.myAlias;
+      const isOwner = acc.ownerAlias === myAlias || (!acc.ownerAlias);
+
+      const removeGroupLocally = () => {
           (acc.expenses || []).forEach(e => {
               if (e.linkedId) p.expenses = p.expenses.filter(x => x.id !== e.linkedId);
           });
@@ -4091,10 +4090,43 @@ function deleteCurrent() {
           });
           p.sharedAccounts.splice(modalIndex, 1);
           saveApp(); closeModal(); renderSharedAccounts();
-      } 
-      else if (modalType === 'sharedExpense') {
+      };
+
+      if (isOwner) {
+          showDialog({
+              title: 'Eliminar Grupo Definitivamente',
+              msg: 'Eres el creador. Al eliminar este grupo, se borrará de la nube permanentemente para TODOS los integrantes. ¿Estás seguro?',
+              onConfirm: () => {
+                  if (window.db) db.collection('shared_groups').doc(acc.id).delete().catch(e=>console.log(e));
+                  removeGroupLocally();
+                  showToast("Grupo eliminado para todos", "🗑️");
+              }
+          });
+      } else {
+          showDialog({
+              title: 'Abandonar Grupo',
+              msg: '¿Seguro que deseas salir? Dejarás de recibir actualizaciones, el grupo se borrará de tu lista y tu nombre será removido del directorio.',
+              onConfirm: () => {
+                  // Me elimino de la lista de participantes en la nube
+                  acc.participants = acc.participants.filter(n => n !== myAlias);
+                  if(acc.admins) acc.admins = acc.admins.filter(n => n !== myAlias);
+                  pushGroupToCloud(acc); // Sube la configuración sin mí
+                  removeGroupLocally(); // Lo elimino de mi teléfono
+                  showToast("Has abandonado el grupo", "👋");
+              }
+          });
+      }
+      return;
+  } 
+
+  // Resto de la función original intacta
+  showDialog({
+    title: 'Eliminar Registro',
+    msg: '¿Estás seguro de eliminar este registro permanentemente?',
+    onConfirm: () => {
+      if (modalType === 'sharedExpense') {
           const exp = p.sharedAccounts[modalIndex.accIdx].expenses[modalIndex.expIdx];
-          if (exp.linkedId) p.expenses = p.expenses.filter(x => x.id !== exp.linkedId); // Lo borra de mi bolsillo
+          if (exp.linkedId) p.expenses = p.expenses.filter(x => x.id !== exp.linkedId); 
           p.sharedAccounts[modalIndex.accIdx].expenses.splice(modalIndex.expIdx, 1);
           saveApp(); closeModal(); renderSharedAccountDetail(modalIndex.accIdx);
       } 
@@ -5674,9 +5706,9 @@ window.openCreateSharedAccount = function(idx = null) {
 
     byId('modalTitle').textContent = idx !== null ? 'Editar Cuenta Compartida' : 'Nueva Cuenta Compartida';
     
-    // REGLA: Solo el CREADOR (Owner) puede eliminar el grupo
-    byId('btnDelete').style.display = (idx !== null && isOwner) ? 'inline-flex' : 'none';
-    byId('btnSave').style.display = 'inline-flex';
+    // REGLA: Todos pueden ver el botón (El dueño elimina, el miembro sale)
+    byId('btnDelete').style.display = (idx !== null) ? 'inline-flex' : 'none';
+    byId('btnDelete').textContent = isOwner ? 'Eliminar Grupo' : 'Salir del Grupo';
 
     let html = `
         <div class="grid grid2">
@@ -7124,11 +7156,194 @@ window.discardUpdate = function() {
     renderSettingsTabAbout();
 };
 
+
+// =========================================================================
+// MOTOR DE PRÉSTAMOS P2P (ONLINE & OFFLINE)
+// =========================================================================
+
+window.openSmartContactPicker = function(targetId) {
+    const html = `
+        <div style="padding:16px; border-bottom:1px solid var(--md-outline-variant);">
+            <input type="text" id="smartContactSearch" placeholder="🔍 Buscar o escribir nuevo nombre..." style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--md-outline-variant); font-size:14px;" onkeyup="filterSmartContacts(this.value, '${targetId}')">
+        </div>
+        <div id="smartContactList" style="max-height:50vh; overflow-y:auto;"></div>
+    `;
+    byId('selectModalTitle').textContent = 'Seleccionar Persona';
+    byId('selectModalOptions').innerHTML = html;
+    byId('selectModal').classList.add('active');
+    
+    filterSmartContacts('', targetId);
+    setTimeout(() => { if(byId('smartContactSearch')) byId('smartContactSearch').focus(); }, 100);
+};
+
+window.filterSmartContacts = function(val, targetId) {
+    const contacts = prof().settings.contacts || [];
+    const term = val.toLowerCase().trim();
+    let filtered = contacts.filter(c => c.alias.toLowerCase().includes(term));
+
+    let listHtml = '';
+    
+    // Si escribes un nombre que NO está en la lista, te da la opción de crearlo
+    if (term && !contacts.some(c => c.alias.toLowerCase() === term)) {
+        listHtml += `
+        <div style="padding:16px 24px; background:var(--md-primary-container); color:var(--md-primary); cursor:pointer; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--md-outline-variant)50;" onclick="confirmSmartContact('${targetId}', '${val}')">
+            <span style="font-size:24px;">➕</span>
+            <div>
+                <div style="font-weight:900; font-size:15px;">Usar "${val}"</div>
+                <div style="font-size:11px;">Registrar como persona fuera de la app</div>
+            </div>
+        </div>`;
+    }
+
+    // Lista de contactos guardados
+    filtered.forEach(c => {
+        listHtml += `
+        <div style="padding:16px 24px; background:transparent; color:var(--md-on-surface); cursor:pointer; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--md-outline-variant)50;" onclick="confirmSmartContact('${targetId}', '${c.alias}')">
+            <span style="font-size:20px;">👤</span>
+            <div>
+                <div style="font-weight:bold; font-size:15px;">${c.alias}</div>
+                <div style="font-size:11px; color:var(--md-outline);">${c.email ? 'App' : 'Offline'} ${c.phone ? '• '+c.phone : ''}</div>
+            </div>
+        </div>`;
+    });
+
+    if(!term && filtered.length === 0) listHtml = '<div class="small" style="padding:24px; text-align:center;">Agenda vacía. Escribe un nombre arriba.</div>';
+
+    byId('smartContactList').innerHTML = listHtml;
+};
+
+window.confirmSmartContact = function(targetId, val) {
+    byId(targetId).value = val;
+    closeSelectModal();
+};
+
+window.switchP2PTab = function(state, el) {
+    const parent = el.parentElement;
+    parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    byId('p2pLoansListActive').style.display = state === 'active' ? 'block' : 'none';
+    byId('p2pLoansListClosed').style.display = state === 'closed' ? 'block' : 'none';
+};
+
+window.requestP2PLoan = function() {
+    const p = prof();
+    const methods = p.settings.paymentMethods || [];
+    let mOpts = methods.map(m => `<option value="🏦 ${m.bank} - ${m.account || m.phone}">${m.bank} (${m.account || m.phone})</option>`).join('');
+
+    showDialog({
+        title: 'Solicitar Préstamo',
+        msg: `
+            <div class="grid" style="gap:10px; text-align:left;">
+                <div><label>¿A quién le pedirás?</label>
+                    <input type="text" id="p2p_person" readonly placeholder="Toca para seleccionar..." style="width:100%; padding:14px; border-radius:12px; border:1px solid var(--md-outline-variant); font-size:14px; cursor:pointer; background:var(--md-surface-variant); font-weight:bold; color:var(--md-primary); text-align:center;" onclick="openSmartContactPicker('p2p_person')" required>
+                </div>
+                <div><label>Monto ($)</label><input id="p2p_amt" type="number" required></div>
+                <div><label>Motivo</label><input id="p2p_desc" placeholder="Ej. Para completar la cena"></div>
+                <div><label>¿A qué cuenta quieres que te deposite?</label>
+                ${methods.length > 0 ? `<select id="p2p_dest">${mOpts}</select>` : `<div class="small" style="color:var(--md-error);">⚠️ Registra una cuenta en tu Perfil.</div>`}
+                </div>
+            </div>
+        `,
+        hideCancel: false,
+        onConfirm: () => {
+            const personName = byId('p2p_person').value.trim();
+            const amt = parseFloat(byId('p2p_amt').value);
+            const desc = byId('p2p_desc').value.trim();
+            const dest = byId('p2p_dest') ? byId('p2p_dest').value : 'Acordado en persona';
+
+            if(!personName) return showToast("Debes seleccionar a alguien", "❌");
+            if(!amt || amt <= 0) return showToast("Monto inválido", "❌");
+            
+            const contacts = p.settings.contacts || [];
+            const foundContact = contacts.find(c => c.alias.toLowerCase() === personName.toLowerCase());
+            
+            const lenderEmail = foundContact ? (foundContact.email || '') : '';
+            const lenderAlias = foundContact ? foundContact.alias : personName;
+            const lenderPhone = foundContact ? (foundContact.phone || '') : '';
+            const isOffline = !lenderEmail;
+
+            const loanRef = db.collection('p2p_loans').doc(uid());
+
+            loanRef.set({
+                id: loanRef.id, borrowerEmail: p.settings.myEmail, borrowerAlias: p.settings.myAlias,
+                lenderEmail: lenderEmail, lenderAlias: lenderAlias, lenderPhone: lenderPhone,
+                amount: amt, desc: desc, borrowerAccount: dest, 
+                status: isOffline ? 'offline_requested' : 'requested', offline: isOffline,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            if (isOffline && !foundContact) saveContactSilently(lenderAlias, '', '');
+            showToast(isOffline ? "Solicitud registrada localmente" : "Solicitud enviada a " + lenderAlias, "✅");
+        }
+    });
+    setTimeout(initCustomSelects, 50); // 🌟 MAGIA: Estiliza el selector de bancos
+};
+
+window.giveP2PLoan = function() {
+    const p = prof();
+    const methods = p.settings.paymentMethods || [];
+    let mOpts = methods.map(m => `<option value="🏦 ${m.bank} - ${m.account || m.phone}">${m.bank} (${m.account || m.phone})</option>`).join('');
+
+    showDialog({
+        title: 'Registrar Préstamo Otorgado',
+        msg: `
+            <div class="grid" style="gap:10px; text-align:left;">
+                <div><label>¿A quién le prestaste?</label>
+                    <input type="text" id="p2p_person" readonly placeholder="Toca para seleccionar..." style="width:100%; padding:14px; border-radius:12px; border:1px solid var(--md-outline-variant); font-size:14px; cursor:pointer; background:var(--md-surface-variant); font-weight:bold; color:var(--md-primary); text-align:center;" onclick="openSmartContactPicker('p2p_person')" required>
+                </div>
+                <div><label>Monto ($)</label><input id="p2p_amt" type="number" required></div>
+                <div><label>Motivo</label><input id="p2p_desc" placeholder="Ej. Emergencia médica"></div>
+                <div><label>¿A qué cuenta deben pagarte luego?</label>
+                ${methods.length > 0 ? `<select id="p2p_myacc">${mOpts}</select>` : `<div class="small" style="color:var(--md-error);">⚠️ Registra una cuenta bancaria.</div>`}
+                </div>
+            </div>
+        `,
+        hideCancel: false,
+        onConfirm: () => {
+            const personName = byId('p2p_person').value.trim();
+            const amt = parseFloat(byId('p2p_amt').value);
+            const desc = byId('p2p_desc').value.trim();
+            const dest = byId('p2p_myacc') ? byId('p2p_myacc').value : 'Acordado en persona';
+
+            if(!personName) return showToast("Debes seleccionar a alguien", "❌");
+            if(!amt || amt <= 0) return showToast("Monto inválido", "❌");
+            
+            const contacts = p.settings.contacts || [];
+            const foundContact = contacts.find(c => c.alias.toLowerCase() === personName.toLowerCase());
+            
+            const borrowerEmail = foundContact ? (foundContact.email || '') : '';
+            const borrowerAlias = foundContact ? foundContact.alias : personName;
+            const borrowerPhone = foundContact ? (foundContact.phone || '') : '';
+            const isOffline = !borrowerEmail;
+
+            const loanRef = db.collection('p2p_loans').doc(uid());
+
+            p.expenses.push({ id: loanRef.id, name: `Préstamo a ${borrowerAlias}`, amount: amt, freq: 'one-time', date: today(), flex: false });
+            p.overrides = p.overrides || {};
+            p.overrides[`expense_${loanRef.id}_${today()}`] = { actualDate: today(), done: true };
+            
+            loanRef.set({
+                id: loanRef.id, lenderEmail: p.settings.myEmail, lenderAlias: p.settings.myAlias,
+                borrowerEmail: borrowerEmail, borrowerAlias: borrowerAlias, borrowerPhone: borrowerPhone, 
+                amount: amt, desc: desc, lenderAccount: dest, 
+                status: isOffline ? 'offline_active' : 'sent', offline: isOffline,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            if (isOffline && !foundContact) saveContactSilently(borrowerAlias, '', '');
+            saveApp(); runPlan();
+            showToast(isOffline ? "Préstamo registrado localmente" : `Dinero enviado a ${borrowerAlias}`, "✅");
+        }
+    });
+    setTimeout(initCustomSelects, 50); // 🌟 MAGIA: Estiliza el selector de bancos
+};
+
 window.actionP2P = function(loanId, action) {
     const loan = window.p2pData.find(x => x.id === loanId);
     const p = prof();
     const methods = p.settings.paymentMethods || [];
 
+    // --- ACCIONES ONLINE (Conecta con la app del otro) ---
     if(action === 'reject') {
         showDialog({
             title: 'Rechazar Préstamo', msg: '¿Seguro que deseas rechazar esta solicitud?',
@@ -7198,7 +7413,8 @@ window.actionP2P = function(loanId, action) {
             onConfirm: () => { db.collection('p2p_loans').doc(loanId).update({ status: 'closed' }); showToast("Préstamo cerrado.", "✅"); }
         });
     }
-    // 🌟 NUEVAS ACCIONES: PARA CONTACTOS OFFLINE Y RECORDATORIOS
+    
+    // --- ACCIONES OFFLINE (Tú controlas todo manual) ---
     else if(action === 'offline_close') {
         showDialog({
             title: 'Marcar como Pagado',
@@ -7209,6 +7425,35 @@ window.actionP2P = function(loanId, action) {
                 p.overrides = p.overrides || {};
                 p.overrides[`income_${loanId}_${today()}`] = { actualDate: today(), done: true };
                 saveApp(); runPlan(); showToast("Préstamo saldado con éxito.", "✅");
+            }
+        });
+    }
+    else if(action === 'receive_offline') {
+        showDialog({
+            title: 'Dinero Recibido',
+            msg: '¿Confirmas que ya te entregaron el dinero físicamente o en tu cuenta? Se sumará a tu saldo y se creará la deuda.',
+            onConfirm: () => {
+                db.collection('p2p_loans').doc(loanId).update({ status: 'offline_active' });
+                p.incomes.push({ id: loanId, name: `Préstamo de ${loan.lenderAlias}`, amount: loan.amount, freq: 'one-time', date: today() });
+                p.overrides = p.overrides || {};
+                p.overrides[`income_${loanId}_${today()}`] = { actualDate: today(), done: true };
+                p.debts.push({ id: loanId, name: `Deuda a ${loan.lenderAlias}`, type: 'noloan', balance: loan.amount, minPay: loan.amount });
+                saveApp(); runPlan(); showToast("Préstamo activo.", "✅");
+            }
+        });
+    }
+    else if(action === 'return_offline') {
+        showDialog({
+            title: 'Pagar Deuda',
+            msg: '¿Confirmas que ya le devolviste el dinero? Se restará de tu saldo y se cerrará la deuda.',
+            onConfirm: () => {
+                db.collection('p2p_loans').doc(loanId).update({ status: 'offline_closed' });
+                const expId = uid();
+                p.expenses.push({ id: expId, name: `Pago Deuda a ${loan.lenderAlias}`, amount: loan.amount, freq: 'one-time', date: today(), flex: false });
+                p.overrides = p.overrides || {};
+                p.overrides[`expense_${expId}_${today()}`] = { actualDate: today(), done: true };
+                p.debts = p.debts.filter(d => d.id !== loanId);
+                saveApp(); runPlan(); showToast("Deuda pagada.", "✅");
             }
         });
     }
@@ -7240,21 +7485,32 @@ window.renderP2PLoans = function() {
         const otherPerson = iAmBorrower ? loan.lenderAlias : loan.borrowerAlias;
         const isClosed = (loan.status === 'closed' || loan.status === 'rejected' || loan.status === 'offline_closed');
 
-        let roleText = isOffline ? 'Prestaste a (Offline):' : (iAmBorrower ? 'Le pediste a:' : 'Te pidió:');
+        let roleText = isOffline ? (iAmBorrower ? 'Le pediste a (Offline):' : 'Prestaste a (Offline):') : (iAmBorrower ? 'Le pediste a:' : 'Te pidió:');
         if (!iAmBorrower && loan.status === 'sent') roleText = 'Le prestaste a:';
 
         let color = isClosed ? (loan.status === 'rejected' ? '#d93025' : '#0f9d58') : (iAmBorrower ? '#e8710a' : '#1a73e8');
         let actionBtn = '';
         
-        // BOTONES INTELIGENTES SEGÚN EL ESTADO
+        // 🌟 LÓGICA DE BOTONES INTELIGENTES
         if (isOffline && !isClosed) {
-            actionBtn = `
-                <button class="btn" style="font-size:11px; padding:6px; min-height:0; color:#0f9d58; border-color:#0f9d58; background:transparent;" onclick="actionP2P('${loan.id}', 'remind')">💬 Cobrar</button>
-                <button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58; border-color:#0f9d58; margin-left:6px;" onclick="actionP2P('${loan.id}', 'offline_close')">✔ Pagado</button>
-            `;
-        } else if (!isOffline) {
+            if (!iAmBorrower) {
+                // Yo presté
+                actionBtn = `
+                    <button class="btn" style="font-size:11px; padding:6px; min-height:0; color:#0f9d58; border-color:#0f9d58; background:transparent;" onclick="actionP2P('${loan.id}', 'remind')">💬 Cobrar</button>
+                    <button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58; border-color:#0f9d58; margin-left:6px;" onclick="actionP2P('${loan.id}', 'offline_close')">✔ Pagado</button>
+                `;
+            } else {
+                // Yo pedí
+                if (loan.status === 'offline_requested') {
+                    actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58; border-color:#0f9d58;" onclick="actionP2P('${loan.id}', 'receive_offline')">Recibí el dinero</button>`;
+                } else if (loan.status === 'offline_active') {
+                    actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:var(--md-on-surface); border-color:var(--md-on-surface);" onclick="actionP2P('${loan.id}', 'return_offline')">Pagar Deuda</button>`;
+                }
+            }
+        } else if (!isOffline && !isClosed) {
+            // ONLINE (Ambos tienen app)
             if(loan.status === 'requested' && !iAmBorrower) {
-                actionBtn = `<button class="btn danger" style="font-size:11px; padding:6px; min-height:0;" onclick="actionP2P('${loan.id}', 'reject')">Rechazar</button> <button class="btn primary" style="font-size:11px; padding:6px; min-height:0;" onclick="actionP2P('${loan.id}', 'send')">Prestar</button>`;
+                actionBtn = `<button class="btn danger" style="font-size:11px; padding:6px; min-height:0;" onclick="actionP2P('${loan.id}', 'reject')">Rechazar</button> <button class="btn primary" style="font-size:11px; padding:6px; min-height:0; margin-left:6px;" onclick="actionP2P('${loan.id}', 'send')">Prestar</button>`;
                 pendingActions++;
             } else if(loan.status === 'sent' && iAmBorrower) {
                 actionBtn = `<button class="btn primary" style="font-size:11px; padding:6px; min-height:0; background:#0f9d58;" onclick="actionP2P('${loan.id}', 'receive')">Ya lo Recibí</button>`;
@@ -7271,12 +7527,13 @@ window.renderP2PLoans = function() {
 
         let statusText = '';
         if(loan.status === 'requested') statusText = '⏳ Solicitado';
-        else if(loan.status === 'sent') statusText = `📤 Dinero Enviado (Esperando a ${otherPerson})`;
+        else if(loan.status === 'offline_requested') statusText = '⏳ Solicitado (Esperando recibir dinero)';
+        else if(loan.status === 'sent') statusText = `📤 Dinero Enviado`;
         else if(loan.status === 'received') statusText = '✅ Préstamo Activo';
         else if(loan.status === 'returned') statusText = `💸 Devolución Enviada`;
         else if(loan.status === 'closed' || loan.status === 'offline_closed') statusText = '🔒 Saldado / Cerrado';
         else if(loan.status === 'rejected') statusText = '❌ Rechazado';
-        else if(loan.status === 'offline_active') statusText = '⏳ Esperando pago';
+        else if(loan.status === 'offline_active') statusText = iAmBorrower ? '⚠️ Debes este dinero' : '⏳ Esperando pago';
 
         const cardHtml = `
             <div style="padding:12px; border:1px solid ${color}50; border-left: 4px solid ${color}; border-radius:12px; margin-bottom:12px; background:var(--md-surface); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
@@ -7286,8 +7543,8 @@ window.renderP2PLoans = function() {
                 </div>
                 <div class="small" style="background:var(--md-surface-variant); padding:8px; border-radius:8px; margin-bottom:8px;">
                     <b style="color:${color}">Estado:</b> ${statusText}<br>
-                    ${loan.status === 'requested' ? `<b>Enviar a:</b> ${loan.borrowerAccount}` : ''}
-                    ${loan.status === 'received' && iAmBorrower ? `<b>Pagar a:</b> ${loan.lenderAccount}` : ''}
+                    ${(loan.status === 'requested' || loan.status === 'offline_requested') ? `<b>Enviar a:</b> ${loan.borrowerAccount}` : ''}
+                    ${(loan.status === 'received' || loan.status === 'offline_active') && iAmBorrower ? `<b>Pagar a:</b> ${loan.lenderAccount || 'Acordado en persona'}` : ''}
                 </div>
                 <div style="text-align:right;">${actionBtn}</div>
             </div>
@@ -7303,93 +7560,6 @@ window.renderP2PLoans = function() {
 };
 
 
-window.requestP2PLoan = function() {
-
-    const p = prof();
-
-    const contacts = p.settings.contacts || [];
-
-    const methods = p.settings.paymentMethods || [];
-
-
-
-    if(contacts.length === 0) return showToast("Agrega amigos a tu agenda primero.", "⚠️");
-
-
-
-    let cOpts = contacts.map(c => `<option value="${c.email}">${c.alias}</option>`).join('');
-
-    let mOpts = methods.map(m => `<option value="🏦 ${m.bank} - ${m.account || m.phone}">${m.bank} (${m.account || m.phone})</option>`).join('');
-
-
-
-    showDialog({
-
-        title: 'Solicitar Préstamo',
-
-        msg: `
-
-            <div class="grid" style="gap:10px; text-align:left;">
-
-                <div><label>¿A quién le pedirás?</label><select id="p2p_lender">${cOpts}</select></div>
-
-                <div><label>Monto ($)</label><input id="p2p_amt" type="number" required></div>
-
-                <div><label>Motivo</label><input id="p2p_desc" placeholder="Ej. Para completar la cena"></div>
-
-                <div><label>¿A qué cuenta quieres que te deposite?</label>
-
-                ${methods.length > 0 ? `<select id="p2p_dest">${mOpts}</select>` : `<div class="small" style="color:var(--md-error);">⚠️ Ve a tu Perfil y registra una cuenta bancaria.</div>`}
-
-                </div>
-
-            </div>
-
-        `,
-
-        hideCancel: false,
-
-        onConfirm: () => {
-
-            const lenderEmail = byId('p2p_lender').value;
-
-            const amt = parseFloat(byId('p2p_amt').value);
-
-            const desc = byId('p2p_desc').value.trim();
-
-            const dest = byId('p2p_dest') ? byId('p2p_dest').value : 'Acordado en persona';
-
-
-
-            if(!amt || amt <= 0) return showToast("Monto inválido", "❌");
-
-            
-
-            const lenderAlias = contacts.find(c => c.email === lenderEmail).alias;
-
-            const loanRef = db.collection('p2p_loans').doc(uid());
-
-
-
-            loanRef.set({
-
-                id: loanRef.id, borrowerEmail: p.settings.myEmail, borrowerAlias: p.settings.myAlias,
-
-                lenderEmail: lenderEmail, lenderAlias: lenderAlias, amount: amt, desc: desc,
-
-                borrowerAccount: dest, status: 'requested', timestamp: firebase.firestore.FieldValue.serverTimestamp()
-
-            });
-
-
-
-            showToast("Solicitud enviada a " + lenderAlias, "✅");
-
-        }
-
-    });
-
-};
 
 
 function renderDashboard() {
