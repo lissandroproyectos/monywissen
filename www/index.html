@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.1.9" />
+<meta name="app-version" content="1.2.0" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="<br>- Nuevo modulo de registro de prestamos.<br>- busqueda en la red.<br>- Plantillas de deudas" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -1127,6 +1127,40 @@ window.pushGroupToCloud = function(accObj) {
 // =========================================================================
 // INICIALIZACIÓN DE FIREBASE (BLINDADA CONTRA CONDICIONES DE CARRERA)
 // =========================================================================
+<!-- const fbCheck = setInterval(() => { -->
+    <!-- if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'undefined' && typeof firebase.auth !== 'undefined') { -->
+        <!-- clearInterval(fbCheck); -->
+        <!-- if (!firebase.apps.length) { -->
+            <!-- firebase.initializeApp(firebaseConfig); -->
+            <!-- window.db = firebase.firestore(); -->
+            
+            <!-- // 🌟 INICIALIZACIÓN MODERNA Y LIMPIA (Firebase v10+) -->
+            <!-- try { -->
+                <!-- window.db.settings({  -->
+                    <!-- experimentalForceLongPolling: true, -->
+                    <!-- // Usamos el objeto cache moderno en lugar de llamar a enablePersistence por separado -->
+                    <!-- cache: { -->
+                        <!-- kind: 'persistent', -->
+                        <!-- settings: { -->
+                            <!-- // Esto reemplaza a enableMultiTabIndexedDbPersistence -->
+                            <!-- cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED  -->
+                        <!-- } -->
+                    <!-- }, -->
+					<!-- merge: true -->
+                <!-- }); -->
+                <!-- console.log("🔥 Firestore configurado con Caché persistente moderno."); -->
+            <!-- } catch (e) { -->
+                <!-- console.warn("Firestore settings: configuración ya establecida o no soportada.", e); -->
+            <!-- } -->
+            
+            <!-- window.auth = firebase.auth(); -->
+            <!-- console.log("🔥 Firebase conectado en modo Híbrido"); -->
+            <!-- initFirebaseAuth();  -->
+        <!-- } -->
+    <!-- } -->
+<!-- }, 200); -->
+
+
 const fbCheck = setInterval(() => {
     if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'undefined' && typeof firebase.auth !== 'undefined') {
         clearInterval(fbCheck);
@@ -1138,14 +1172,15 @@ const fbCheck = setInterval(() => {
             try {
                 window.db.settings({ 
                     experimentalForceLongPolling: true,
+                    experimentalAutoDetectLongPolling: false, // 🌟 APAGAMOS EL AUTODETECT PARA QUE NO CHOQUEN
                     // Usamos el objeto cache moderno en lugar de llamar a enablePersistence por separado
                     cache: {
                         kind: 'persistent',
                         settings: {
-                            // Esto reemplaza a enableMultiTabIndexedDbPersistence
                             cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED 
                         }
-                    }
+                    },
+                    merge: true
                 });
                 console.log("🔥 Firestore configurado con Caché persistente moderno.");
             } catch (e) {
@@ -1403,90 +1438,6 @@ function switchSettingsTab(tabId, el) {
    }
 }
 
-window.checkCloudConnection = async function() {
-    const p = prof();
-    const card = byId('syncCard');
-    const title = byId('syncCardTitle');
-    const desc = byId('syncCardDesc');
-    
-    if (!card || !p.settings.myEmail || !window.db) return;
-
-    // Colocamos la tarjeta en modo de espera
-    card.style.background = 'var(--md-primary-container)';
-    card.style.border = '1px solid var(--md-outline-variant)';
-    title.style.color = 'var(--md-primary)';
-    desc.innerHTML = '⏳ <b>Verificando certificación con la nube...</b>';
-    desc.style.color = 'var(--md-on-surface-variant)';
-
-    try {
-        if (!navigator.onLine) throw new Error("offline");
-        
-        // Despierta el canal de red de Firebase por si Android lo mandó a dormir
-        await db.enableNetwork();
-
-        // Lanzamos un PING ultrarrápido de 3 segundos directo al servidor
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000));
-        await Promise.race([db.collection('users').doc(p.settings.myEmail).get({ source: 'server' }), timeoutPromise]);
-
-        // 🟢 CONEXIÓN CERTIFICADA (Verde)
-        card.style.background = '#e6f4ea'; 
-        card.style.border = '1px solid #0f9d58';
-        title.style.color = '#0f9d58';
-        desc.innerHTML = '✅ <b>Conexión Certificada.</b> Tienes enlace directo y activo con la base de datos de Firebase.';
-        desc.style.color = '#0f9d58';
-        
-    } catch (err) {
-        console.warn("Fallo de ping en pestaña:", err.message);
-        
-        // 🍊 SIN CONEXIÓN (Mandarina claro)
-        card.style.background = '#fff3e0'; 
-        card.style.border = '1px solid #ff9800';
-        title.style.color = '#e65100';
-        desc.innerHTML = '⚠️ <b>Sin conexión con la base de datos.</b> No hay respuesta del servidor en este momento. Revisa tu internet o intenta sincronizar para forzar un reinicio de red.';
-        desc.style.color = '#e65100';
-    }
-};
-
-window.checkCloudConnection = async function() {
-    const p = prof();
-    const card = byId('syncCard');
-    const title = byId('syncCardTitle');
-    const desc = byId('syncCardDesc');
-    
-    if (!card || !p.settings.myEmail || !window.db) return;
-
-    // 1. Ponemos la tarjeta en estado de "Buscando..."
-    card.style.background = 'var(--md-primary-container)';
-    card.style.border = '1px solid var(--md-outline-variant)';
-    title.style.color = 'var(--md-primary)';
-    desc.innerHTML = '⏳ <b>Verificando conexión con la nube...</b>';
-    desc.style.color = 'var(--md-on-surface-variant)';
-
-    try {
-        if (!navigator.onLine) throw new Error("offline");
-        
-        // 2. Disparamos un "Ping" rápido al servidor con límite de 5 segundos
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
-        await Promise.race([db.collection('users').doc(p.settings.myEmail).get({ source: 'server' }), timeoutPromise]);
-
-        // 3. ÉXITO: Firebase respondió rápido, el túnel está perfecto
-        card.style.background = '#e6f4ea'; 
-        card.style.border = '1px solid #0f9d58';
-        title.style.color = '#0f9d58';
-        desc.innerHTML = '✅ <b>Conexión Certificada.</b> Tu enlace con Firebase está activo y listo.';
-        desc.style.color = '#0f9d58';
-        
-    } catch (err) {
-        console.warn("Verificación anticipada falló:", err.message);
-        
-        // 4. FRACASO: Túnel dormido por Android o sin internet real
-        card.style.background = '#fff3e0'; // Mandarina claro
-        card.style.border = '1px solid #ff9800';
-        title.style.color = '#e65100';
-        desc.innerHTML = '⚠️ <b>Sin conexión certificada.</b> El túnel de red está inactivo. Si le das a Sincronizar, forzaremos un reinicio del motor.';
-        desc.style.color = '#e65100';
-    }
-};
 
 // --- Gestión de Perfiles ---
 function initProfiles(){
@@ -1664,95 +1615,6 @@ window.calculateDebtAuto = function(source) {
     showDebtProjection();
 };
 
-window.showDebtProjection = function() {
-    const el = byId('debtProjection'); if(!el) return;
-    const t = byId('f_type').value; const p = prof();
-    const customDef = (p.settings.customDebts || []).find(c => c.id === t);
-    
-    const originalBalance = parseFloat(byId('f_balance').value) || 0;
-    const isAmortized = byId('f_hasAmortized') && byId('f_hasAmortized').checked;
-    const amortized = isAmortized ? (parseFloat(byId('f_amortized').value) || 0) : 0;
-    
-    // Deuda restante real
-    const remainingBalance = Math.max(0, originalBalance - amortized);
-    
-    if (customDef || t === 'fixed' || t === 'noloan') {
-        el.style.display = 'block';
-        const instInput = parseInt(byId('f_installments').value) || 0; // TOTAL cuotas
-        const quotaInput = parseFloat(byId('f_quota').value) || 0;
-        
-        let endDateStr = 'Sin calcular';
-        let remainingInstallments = 0;
-        
-        if (instInput > 0 && quotaInput > 0) {
-            remainingInstallments = Math.ceil(remainingBalance / quotaInput);
-            
-            let startDStr = byId('f_start') ? byId('f_start').value : today();
-            if (startDStr) {
-                const startD = new Date(startDStr + 'T12:00:00');
-                const freq = customDef ? (customDef.freq || 'monthly') : 'monthly';
-                
-                // Simulador ultra-preciso de fecha final
-                for (let s = 0; s < instInput - 1; s++) {
-                    advanceDateFreq(startD, freq);
-                }
-                
-                endDateStr = startD.toISOString().slice(0, 10);
-                if(byId('f_calculated_end')) byId('f_calculated_end').value = endDateStr;
-            }
-        }
-        
-        let interesTotal = 0;
-        let remainingWithInterest = remainingBalance;
-
-        if ((t === 'fixed' || (customDef && customDef.hasInterest)) && byId('f_hasInterest') && byId('f_hasInterest').value === 'true') {
-            const apr = byId('f_apr') ? ((parseFloat(byId('f_apr').value) || 0) / 100) : 0.60;
-            interesTotal = (originalBalance * apr) * (instInput / 12);
-            remainingWithInterest += interesTotal;
-        }
-        
-        let html = `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Saldo Original:</span> <b>${fmt(originalBalance)}</b></div>`;
-        if (interesTotal > 0) {
-             html += `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#d93025;"><span>Intereses (${instInput} mes):</span> <b>+${fmt(interesTotal)}</b></div>`;
-             html += `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Restante a Financiar:</span> <b style="color:var(--md-error);">${fmt(remainingWithInterest)}</b></div>`;
-        } else {
-             html += `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Restante a Financiar:</span> <b style="color:var(--md-error);">${fmt(remainingBalance)}</b></div>`;
-        }
-        
-        html += `
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cuotas Pendientes:</span> <b>${remainingInstallments || '?'}</b> <span style="font-size:10px; color:var(--md-outline);">(de ${instInput || '?'})</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Monto por Cuota:</span> <b style="color:var(--md-primary);">${fmt(quotaInput)}</b></div>
-            <div style="display:flex; justify-content:space-between; margin-top:8px; border-top:1px solid #e0e0e3; padding-top:8px;"><span>Último cobro estimado:</span> <b style="color:#0f9d58;">${endDateStr !== 'Sin calcular' ? formatDate(endDateStr) : endDateStr}</b></div>
-        `;
-        el.innerHTML = html;
-        if(byId('f_min')) byId('f_min').value = quotaInput.toFixed(2);
-        
-    } else if (t === 'card') {
-        el.style.display = 'block';
-        const hasInterest = byId('f_hasInterest') ? byId('f_hasInterest').value === 'true' : true;
-        const apr = byId('f_apr') ? ((parseFloat(byId('f_apr').value) || 0) / 100) : 0.60;
-        const planv = byId('f_plan') ? byId('f_plan').value : 'full';
-        const months = planv === 'full' ? 1 : (parseInt(planv.split('-')[1]) || 1);
-        
-        let calcMin = 0; let total = remainingBalance;
-        
-        if (!hasInterest) {
-            calcMin = remainingBalance / months;
-            el.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Deuda a Financiar:</span> <b>${fmt(remainingBalance)}</b></div>
-                            <div style="display:flex; justify-content:space-between;"><span>Plazo:</span> <b>${months} mes(es)</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-top:8px; border-top:1px solid #e0e0e3; padding-top:8px;"><span>Cuota Mensual:</span> <b style="color:var(--md-primary);">${fmt(calcMin)}</b></div>`;
-        } else {
-            const interesTotal = (remainingBalance * apr) * (months / 12);
-            total = remainingBalance + interesTotal;
-            calcMin = total / months;
-            el.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Deuda a Financiar:</span> <b>${fmt(remainingBalance)}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#d93025;"><span>Intereses (${months} mes):</span> <b>+${fmt(interesTotal)}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-top:8px; border-top:1px solid #e0e0e3; padding-top:8px;"><span>Total a Pagar:</span> <b>${fmt(total)}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span>Cuota Mensual:</span> <b style="color:var(--md-primary);">${fmt(calcMin)}</b></div>`;
-        }
-        if(byId('f_min')) byId('f_min').value = calcMin.toFixed(2);
-    } else el.style.display = 'none';
-};
 
 window.toggleAmortized = function() {
     const isChecked = byId('f_hasAmortized').checked;
@@ -1863,7 +1725,7 @@ function debtForm(x={}){
     
     '<div id="mod_days_due" style="display:none; grid-column:1/-1;">'+
       '<label style="font-weight:bold; color:var(--md-primary);">Configuración de Cobro (Día/Quincena)</label>' +
-      '<input type="text" id="f_due_display" value="'+(x.dueDay ? 'Configurado' : 'Toca para configurar el cobro')+'" readonly style="width:100%; padding:14px; cursor:pointer; background:var(--md-surface-variant); text-align:center; font-weight:bold; color:var(--md-primary); border-radius:12px; border:1px solid var(--md-outline-variant);" onclick="openDayPickerModal(\'f_due\', \'Configurar Cobro\')">' +
+      '<input type="text" id="f_due_display" value="'+(x.dueDay ? 'Configuración: ' + x.dueDay : 'Toca para configurar el cobro')+'" readonly style="width:100%; padding:14px; cursor:pointer; background:var(--md-surface-variant); text-align:center; font-weight:bold; color:var(--md-primary); border-radius:12px; border:1px solid var(--md-outline-variant);" onclick="openDayPickerModal(\'f_due\', \'Configurar Cobro\')">' +
       '<input type="hidden" id="f_due" value="'+(x.dueDay||'')+'">' +
     '</div>'+
 
@@ -2011,24 +1873,6 @@ window.openDayPickerModal = function(targetId, title) {
     byId('selectModal').classList.add('active');
 };
 
-window.confirmDayPicker = function(targetId, val, displayLabel) {
-    byId(targetId).value = val;
-    const displayEl = byId(targetId + '_display');
-    if(displayEl) displayEl.value = displayLabel;
-    closeSelectModal();
-    
-    // Si estamos en deudas, forzamos a que se recalcule la proyección
-    if (typeof calculateDebtAuto === 'function' && targetId === 'f_due') {
-        calculateDebtAuto('installments');
-    }
-};
-
-window.confirmDayPicker = function(targetId, val) {
-    byId(targetId).value = val;
-    const displayEl = byId(targetId + '_display');
-    if(displayEl) displayEl.value = 'Día ' + val;
-    closeSelectModal();
-};
 
 function singleTransactionForm(type, x={}) {
   return '<div class="grid grid2">'+
@@ -2098,10 +1942,17 @@ function openEdit(type, idx) {
       Object.keys(overrides).forEach(key => {
           if (key.startsWith(type + '_' + item.id + '_')) {
               const ov = overrides[key];
+              
+              // 1. Capturamos los abonos parciales
               if (ov.partials && ov.partials.length > 0) {
                   ov.partials.forEach((pt, pIdx) => {
-                      records.push({ date: pt.date, amt: pt.amt, comment: pt.comment, targetDate: key.split('_')[2], key: key, pIdx: pIdx });
+                      records.push({ date: pt.date, amt: pt.amt, comment: pt.comment, targetDate: key.split('_')[2], key: key, pIdx: pIdx, isFull: false });
                   });
+              }
+              
+              // 🌟 2. EL CAZAFANTASMAS: Capturamos los pagos de cuotas completas (huérfanos o no)
+              if (ov.done && ov.amt !== undefined) {
+                  records.push({ date: ov.actualDate || key.split('_')[2], amt: ov.amt, comment: 'Pago de cuota total', targetDate: key.split('_')[2], key: key, isFull: true });
               }
           }
       });
@@ -2109,11 +1960,15 @@ function openEdit(type, idx) {
       if (records.length > 0) {
           records.sort((a,b) => b.date.localeCompare(a.date)); 
           historyHtml += `<div style="margin-top:16px; border-top:1px solid var(--md-outline-variant); padding-top:16px;">
-              <div class="heading" style="font-size:14px; margin-bottom:8px; color:var(--md-primary);">Historial Global de Abonos</div>
+              <div class="heading" style="font-size:14px; margin-bottom:8px; color:var(--md-primary);">Historial Global de Abonos y Pagos</div>
               <div style="background:var(--md-surface-variant); padding:8px; border-radius:12px; max-height:180px; overflow-y:auto; border:1px solid var(--md-outline-variant);">`;
               
           records.forEach(r => {
               const cHtml = r.comment ? `<div style="font-size:11px; color:var(--md-on-surface-variant); margin-top:2px;">💬 ${r.comment}</div>` : '';
+              
+              // 🌟 Determinamos si el botón rojo borra un abono parcial o una cuota completa
+              const actionBtn = r.isFull ? `undoFullPaymentByKey('${r.key}')` : `deletePartialByKey('${r.key}', ${r.pIdx})`;
+              
               historyHtml += `<div style="display:flex; justify-content:space-between; align-items:center; background:var(--md-surface); padding:10px; border-radius:8px; margin-bottom:6px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                   <div>
                       <div style="font-size:12px; font-weight:bold; color:var(--md-on-surface);">Pago Real: ${formatDate(r.date)}</div>
@@ -2122,7 +1977,7 @@ function openEdit(type, idx) {
                   </div>
                   <div style="display:flex; align-items:center; gap:8px;">
                       <span style="font-weight:900; color:#0f9d58; font-size:14px;">+${fmt(r.amt)}</span>
-                      <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="deletePartialByKey('${r.key}', ${r.pIdx})">✕</button>
+                      <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="${actionBtn}">✕</button>
                   </div>
               </div>`;
           });
@@ -2130,7 +1985,6 @@ function openEdit(type, idx) {
           html += historyHtml;
       }
   }
-  
   // 🌟 INYECCIÓN: Si estamos editando una deuda con cuotas fijas, anexamos el desglose interactivo al final
   if (type === 'debt' && item && item.type !== 'card') {
       html += getInstallmentBreakdownHtml(item);
@@ -2709,20 +2563,50 @@ function saveModal(){
      p.overrides[key] = p.overrides[key] || {};
      
      if (mode === 'full') {
+         const actualAmt = parseFloat(byId('f_actual_amt').value);
          const newDate = byId('f_actual_date').value;
-         if (!newDate) return showToast('Debes seleccionar una fecha.', "⚠️");
+         
+         if (!newDate || isNaN(actualAmt) || actualAmt <= 0) return showToast('Datos inválidos.', "⚠️");
+         
+         // 🌟 NUEVO: LÓGICA DE EXCESOS TRAZABLES (Solo para deudas)
+         const maxRem = parseFloat(byId('f_comp_max_rem') ? byId('f_comp_max_rem').value : actualAmt);
+         const debtName = byId('f_comp_debt_name') ? byId('f_comp_debt_name').value : 'Deuda';
+
+         if (i.type === 'debt' && actualAmt > maxRem + 0.01) {
+             // 1. Capamos el pago a lo que restaba de la deuda
+             p.overrides[key].amt = maxRem; 
+
+             // 2. Mandamos la diferencia a Transacciones Únicas
+             const excessAmt = actualAmt - maxRem;
+             const excessId = 'exc_' + key; // Este ID enlazado es la magia
+             
+             // Limpiamos previo por si el usuario está editando el pago
+             p.expenses = p.expenses.filter(x => x.id !== excessId); 
+
+             p.expenses.push({
+                 id: excessId,
+                 name: `Excedente: ${debtName}`,
+                 desc: `Pagaste ${fmt(actualAmt)} pero la deuda era de ${fmt(maxRem)}`,
+                 amount: excessAmt,
+                 freq: 'one-time',
+                 date: newDate,
+                 flex: false
+             });
+             showToast(`Deuda saldada. Se envió el sobrante de ${fmt(excessAmt)} a Transacciones Únicas`, "✅");
+         } else {
+             p.overrides[key].amt = actualAmt;
+             // Limpiamos si antes había un exceso y ahora editó el pago a un monto menor
+             p.expenses = p.expenses.filter(x => x.id !== 'exc_' + key); 
+         }
+
          p.overrides[key].actualDate = newDate;
          p.overrides[key].done = true;
-         
-         // 🌟 LA MAGIA: Guardamos el monto exacto de dinero que pagaste en este momento
-         p.overrides[key].amt = window.tempExpectedAmt; 
      } else {
          const partAmt = parseFloat(byId('f_partial_amt').value) || 0;
          const partDate = byId('f_partial_date').value;
          const partComment = byId('f_partial_comment').value.trim(); 
          
          if (!partDate || partAmt <= 0) return showToast('Monto inválido.', "⚠️");
-         if (partAmt >= window.tempExpectedAmt) return showToast('El abono debe ser menor al total. Usa "Pago Total".', "⚠️");
 
          p.overrides[key].partials = p.overrides[key].partials || [];
          p.overrides[key].partials.push({ date: partDate, amt: partAmt, comment: partComment });
@@ -2922,6 +2806,9 @@ function saveModal(){
            obj.apr = obj.hasInterest ? ((parseFloat(byId('f_apr').value)||0)/100) : 0;
            obj.mora = obj.hasInterest ? ((parseFloat(byId('f_mora').value)||0)/100) : 0;
        }
+       
+       // 🌟 INYECCIÓN PARA GUARDAR EL DÍA DE COBRO
+       obj.dueDay = byId('f_due') ? byId('f_due').value : '';
     }
     if(i===null)p.debts.push(obj);else p.debts[i]=obj;
   }
@@ -3006,15 +2893,6 @@ function selectDay(el,day){
 }
 
 
-function toggleAprSection(){
-  const has=byId('f_hasInterest').value==='true';
-  const sec=byId('aprSection');
-  if(sec){
-    sec.style.display=has?'grid':'none';
-    sec.className=has?'grid grid2':'';
-  }
-}
-
 
 // --- NUEVO GENERADOR INTELIGENTE DE FECHAS (INGRESOS/GASTOS) ---
 window.toggleFreqOpts = function() {}; // Vaciamos la función vieja para evitar conflictos
@@ -3075,14 +2953,6 @@ function updateDaySelector(){
 }
 
 function autoSetHasInterest(){if(byId('f_type').value==='noloan'){byId('f_hasInterest').value='false';toggleAprSection()}}
-function toggleAprSection(){
-  const has=byId('f_hasInterest').value==='true';
-  const sec=byId('aprSection');
-  if(sec){
-    sec.style.display=has?'grid':'none';
-    sec.className=has?'grid grid2':'';
-  }
-}
 
 function incomeForm(x={}){
   const freq=x.freq||'monthly';
@@ -3123,76 +2993,6 @@ function expenseForm(x={}){
     '</div>';
 }
 
-
-
-function showDebtProjection() {
-    const el = byId('debtProjection');
-    if(!el) return;
-    const t = byId('f_type').value;
-    const p = prof();
-    const customDef = (p.settings.customDebts || []).find(c => c.id === t);
-    
-    const originalBalance = parseFloat(byId('f_balance').value) || 0;
-    const amortized = parseFloat(byId('f_amortized').value) || 0;
-    const balance = Math.max(0, originalBalance - amortized);
-    
-    if (customDef) {
-        el.style.display = 'block';
-        const instInput = parseInt(byId('f_installments').value);
-        const quotaInput = parseFloat(byId('f_quota').value);
-        
-        let calcInstallments = 0; let calcQuota = 0;
-        
-        if (instInput > 0) {
-            calcInstallments = instInput; calcQuota = balance / calcInstallments;
-        } else if (quotaInput > 0) {
-            calcQuota = quotaInput; calcInstallments = Math.ceil(balance / calcQuota);
-        }
-
-        let endDateStr = 'Sin calcular';
-        if (calcInstallments > 0 && calcQuota > 0 && byId('f_start').value) {
-            const startD = new Date(byId('f_start').value + 'T12:00:00');
-            let daysStep = customDef.freq === 'weekly' ? 7 : (customDef.freq === 'biweekly' ? 14 : 30);
-            startD.setDate(startD.getDate() + (calcInstallments * daysStep));
-            endDateStr = startD.toISOString().slice(0, 10);
-            if(byId('f_calculated_end')) byId('f_calculated_end').value = endDateStr;
-        }
-
-        el.innerHTML = `
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Deuda a Financiar:</span> <b>${fmt(balance)}</b></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Nro. de Cuotas:</span> <b>${calcInstallments || '?'}</b></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Monto por Cuota:</span> <b style="color:var(--md-primary);">${fmt(calcQuota)}</b></div>
-            <div style="display:flex; justify-content:space-between; margin-top:8px; border-top:1px solid #e0e0e3; padding-top:8px;"><span>Fecha Final Estimada:</span> <b style="color:#0f9d58;">${endDateStr !== 'Sin calcular' ? formatDate(endDateStr) : endDateStr}</b></div>
-        `;
-        if(byId('f_min')) byId('f_min').value = calcQuota.toFixed(2);
-    } 
-    else if (t === 'card' || t === 'fixed' || t === 'noloan') {
-        el.style.display = 'block';
-        const hasInterest = byId('f_hasInterest') ? byId('f_hasInterest').value === 'true' : true;
-        const apr = byId('f_apr') ? ((parseFloat(byId('f_apr').value) || 0) / 100) : 0.60;
-        const planv = byId('f_plan') ? byId('f_plan').value : 'full';
-        const months = planv === 'full' ? 1 : (parseInt(planv.split('-')[1]) || 1);
-        
-        let calcMin = 0; let total = balance;
-        
-        if (!hasInterest) {
-            calcMin = balance / months;
-            el.innerHTML = `<div style="display:flex; justify-content:space-between;"><span>Total a pagar:</span> <b>${fmt(balance)}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span>Cuota Mensual:</span> <b style="color:var(--md-primary);">${fmt(calcMin)}</b></div>`;
-        } else {
-            const interesTotal = (balance * apr) * (months / 12);
-            total = balance + interesTotal;
-            calcMin = total / months;
-            el.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Deuda Original:</span> <b>${fmt(balance)}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#d93025;"><span>Intereses (${months} mes):</span> <b>+${fmt(interesTotal)}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-top:8px; border-top:1px solid #e0e0e3; padding-top:8px;"><span>Total a Pagar:</span> <b>${fmt(total)}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span>Cuota Mensual:</span> <b style="color:var(--md-primary);">${fmt(calcMin)}</b></div>`;
-        }
-        if(byId('f_min')) byId('f_min').value = calcMin.toFixed(2);
-    } else {
-        el.style.display = 'none';
-    }
-}
 
 function datesBetween(a,b){const r=[];let d=new Date(a),e=new Date(b);while(d<=e){r.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}return r}
 function getDateInMonth(year,month,day){const d=new Date(year,month,day);if(d.getMonth()!==month)d.setDate(0);return d.toISOString().slice(0,10)}
@@ -3690,59 +3490,87 @@ function addOccur(mapObj, date, label, type, amt, ref) {
   let userPostponed = p.overrides[key] ? p.overrides[key].userPostponed : false;
   
   let partials = (p.overrides[key] && p.overrides[key].partials) ? p.overrides[key].partials : [];
-  let remainingAmt = Math.abs(amt);
+  
+  // 🌟 GUARDAMOS EL MONTO PLANIFICADO ORIGINAL
+  let plannedAmt = Math.abs(amt);
+  let remainingAmt = plannedAmt;
+  let totalPaidInPartials = 0;
 
-  // 1. Distribuir abonos parciales
   partials.forEach(pt => {
+      totalPaidInPartials += parseFloat(pt.amt || 0);
       if (pt.date >= p.settings.planStart && pt.date <= p.settings.planEnd) {
           (mapObj[pt.date] ??= []).push({ 
               label: label + ' (Abono ✓)', type, amt: amt > 0 ? pt.amt : -pt.amt, 
-              ref, originalDate: date, done: true, isPartial: true, userPostponed: false
+              ref, originalDate: date, done: true, isPartial: true, userPostponed: false, plannedAmt: plannedAmt
           });
       }
       remainingAmt -= pt.amt;
   });
 
-  if (remainingAmt <= 0.01) { done = true; remainingAmt = 0; }
+  let finalPaymentAmt = remainingAmt;
+  if (done && p.overrides[key].amt !== undefined) {
+      finalPaymentAmt = parseFloat(p.overrides[key].amt); // Usamos el monto real que el usuario escribió
+  }
 
-  // 2. Inyectar el remanente
-  if (remainingAmt > 0) {
+  if (!done && finalPaymentAmt <= 0.01) { done = true; finalPaymentAmt = 0; }
+
+  if (finalPaymentAmt > 0 || done) {
+      if (finalPaymentAmt <= 0 && totalPaidInPartials >= plannedAmt) return;
+
+      let totalPaidForInstallment = totalPaidInPartials + (done ? finalPaymentAmt : 0);
+      let extraLabel = '';
+
+      // 🌟 ETIQUETAS MÁGICAS: Si pagaste menos (ahorro) o pagaste más (exceso)
+      if (done && totalPaidForInstallment < plannedAmt - 0.01) {
+          extraLabel = ` (Ahorraste ${fmt(plannedAmt - totalPaidForInstallment)})`;
+      } else if (done && totalPaidForInstallment > plannedAmt + 0.01) {
+          extraLabel = ` (+${fmt(totalPaidForInstallment - plannedAmt)} Extra)`;
+      }
+
+      const occurrence = { 
+          label: label + (done ? ` (✓)${extraLabel}` : (partials.length > 0 ? ' (Restante)' : '')), 
+          type, amt: amt > 0 ? finalPaymentAmt : -finalPaymentAmt, 
+          ref, originalDate: date, done: done, userPostponed: userPostponed, plannedAmt: plannedAmt
+      };
+
       if (finalDate >= p.settings.planStart && finalDate <= p.settings.planEnd) {
-          (mapObj[finalDate] ??= []).push({ 
-              label: label + (done ? ' (✓)' : (partials.length > 0 ? ' (Restante)' : '')), 
-              type, amt: amt > 0 ? remainingAmt : -remainingAmt, 
-              ref, originalDate: date, done: done, userPostponed: userPostponed 
-          });
+          (mapObj[finalDate] ??= []).push(occurrence);
       } else if (finalDate < p.settings.planStart && !done) {
-          // 🌟 LA SOLUCIÓN: Si la cuota quedó en el pasado sin pagar, la arrastramos al presente como pendiente
-          (mapObj[p.settings.planStart] ??= []).push({ 
-              label: label + (partials.length > 0 ? ' (Restante)' : ''), 
-              type, amt: amt > 0 ? remainingAmt : -remainingAmt, 
-              ref, originalDate: date, done: false, userPostponed: userPostponed 
-          });
+          occurrence.originalDate = date; 
+          (mapObj[p.settings.planStart] ??= []).push(occurrence);
       }
   }
 }
 
-window.advanceDateFreq = function(curr, freq) {
+window.advanceDateFreq = function(curr, freq, dueDay) {
     if (freq === 'weekly') {
         curr.setDate(curr.getDate() + 7);
     } else if (freq === 'biweekly') {
+        let parts = String(dueDay || '15-30').split('-');
+        let v1 = parseInt(parts[0]) || 15;
+        let v2 = parts[1] || '30';
         let d = curr.getDate();
-        // Lógica maestra de "15 y Último"
-        if (d === 15) {
-            curr.setMonth(curr.getMonth() + 1, 0); // Salta exacto al último día del mes (28, 30 o 31)
-        } else if (d >= 28) { 
-            curr.setDate(1); 
-            curr.setMonth(curr.getMonth() + 1); 
-            curr.setDate(15); // Salta exacto al 15 del mes siguiente
+        let m = curr.getMonth();
+        let limitV2 = (v2 === '30' || v2 === 'EOM') ? 28 : parseInt(v2); 
+        
+        if (d < v1) {
+            curr.setDate(v1);
+        } else if (d >= v1 && d < limitV2) {
+            if (v2 === '30' || v2 === 'EOM') curr.setMonth(m + 1, 0);
+            else curr.setDate(parseInt(v2));
         } else {
-            curr.setDate(curr.getDate() + 15); // Si es una fecha rara (ej. día 4), suma 15 días exactos
+            curr.setDate(1);
+            curr.setMonth(m + 1);
+            curr.setDate(v1);
         }
     } else if (freq === 'triweekly') {
         curr.setDate(curr.getDate() + 21);
     } else {
-        curr.setMonth(curr.getMonth() + 1); // Mensual perfecto
+        let targetDay = parseInt(dueDay) || curr.getDate();
+        curr.setDate(1);
+        curr.setMonth(curr.getMonth() + 1);
+        let maxDays = new Date(curr.getFullYear(), curr.getMonth() + 1, 0).getDate();
+        curr.setDate(Math.min(targetDay, maxDays));
     }
 };
 
@@ -3752,7 +3580,6 @@ function getInstallmentBreakdownHtml(item) {
     
     let customDef = (p.settings.customDebts || []).find(c => c.id === item.type);
     let curr = new Date(item.start + 'T12:00:00');
-    // 🌟 BORRAMOS LA VARIABLE limitDate. Ya no la necesitamos.
     
     const freq = customDef ? (customDef.freq || 'monthly') : 'monthly';
     const pay = parseFloat(item.amount) || 0;
@@ -3769,40 +3596,75 @@ function getInstallmentBreakdownHtml(item) {
     
     let html = `
         <div style="margin-top:16px; border-top:1px solid var(--md-outline-variant); padding-top:16px; grid-column:1/-1;">
-            <div class="heading" style="font-size:14px; margin-bottom:8px; color:var(--md-primary);">Desglose Control de Cuotas (${item.installments || '?'} Totales)</div>
+            <div class="heading" style="font-size:14px; margin-bottom:8px; color:var(--md-primary);">Desglose Histórico de Cuotas</div>
             <div style="background:var(--md-surface-variant); padding:8px; border-radius:12px; max-height:220px; overflow-y:auto; border:1px solid var(--md-outline-variant); display:flex; flex-direction:column; gap:6px;">
     `;
     
     for (let safetyLoop = 0; safetyLoop < 999; safetyLoop++) {
-        // 🌟 REGLA DE ORO: Nos detenemos EXCLUSIVAMENTE cuando hayamos sumado todo el dinero.
         if (totalDebt > 0 && accumulated >= totalDebt - 0.01) break;
-        // Seguro por si es una deuda sin monto final (infinita)
         if (totalDebt <= 0 && installmentNum > (item.installments || 120)) break; 
-        
-        let currentPay = pay;
-        if (totalDebt > 0 && accumulated + pay > totalDebt) {
-            currentPay = totalDebt - accumulated;
-        }
         
         const dateStr = curr.toISOString().slice(0, 10);
         const key = 'debt_' + item.id + '_' + dateStr;
         const ov = p.overrides[key] || {};
+
+        let currentPay = pay;
+        if (totalDebt > 0 && accumulated + currentPay > totalDebt) {
+            currentPay = totalDebt - accumulated;
+        }
+
+        let coveredByAmort = 0;
+        if (amortized > accumulated) {
+            coveredByAmort = Math.min(currentPay, amortized - accumulated);
+        }
+        let requiredPay = currentPay - coveredByAmort;
+
+        let effectivePayToAccumulate = requiredPay;
+        if (ov.done && ov.amt !== undefined) {
+            const realPaidInThisInstallment = parseFloat(ov.amt);
+            const partialsSum = (ov.partials || []).reduce((sum, pt) => sum + parseFloat(pt.amt||0), 0);
+            effectivePayToAccumulate = realPaidInThisInstallment + partialsSum;
+        }
+
+        let excessOverTotal = 0;
+        if (totalDebt > 0 && accumulated + coveredByAmort + effectivePayToAccumulate > totalDebt) {
+            excessOverTotal = (accumulated + coveredByAmort + effectivePayToAccumulate) - totalDebt;
+            effectivePayToAccumulate = totalDebt - accumulated - coveredByAmort;
+        }
         
         let statusText = ''; let statusColor = ''; let btnHtml = '';
-        const coveredByAmortization = (accumulated < amortized - 0.01);
         
-        if (coveredByAmortization) {
-            statusText = '✅ Adelantada (Inicial)'; statusColor = '#0f9d58';
-        } else if (ov.done) {
-            statusText = `✅ Pagada el ${formatDate(ov.actualDate || dateStr)}`; statusColor = '#0f9d58';
+        if (ov.done) {
+            let excessLabel = '';
+            if (effectivePayToAccumulate > requiredPay + 0.01) {
+                excessLabel = ` <br><span style="color:var(--md-primary);">(+${fmt(effectivePayToAccumulate - requiredPay)} Extra a capital)</span>`;
+            }
+            if (excessOverTotal > 0.01) {
+                excessLabel += ` <br><span style="color:var(--md-error);">(+${fmt(excessOverTotal)} Pagado de más)</span>`;
+            }
+            
+            statusText = `✅ Pagada el ${formatDate(ov.actualDate || dateStr)}${excessLabel}`; 
+            statusColor = '#0f9d58';
             btnHtml = `<button class="btn icon danger" style="padding:2px 6px; min-height:0; width:auto; border:none; background:transparent; font-size:12px;" onclick="undoFullPaymentByKey('${key}')" title="Revertir Pago">✕</button>`;
-        } else {
+        } 
+        else if (requiredPay <= 0.01) {
+            statusText = '✅ Adelantada (Inicial)'; 
+            statusColor = '#0f9d58';
+        } 
+        else {
             const isOverdue = dateStr < today();
             statusText = isOverdue ? '⚠️ Atrasada (Pendiente)' : '⏳ Pendiente';
             statusColor = isOverdue ? '#d93025' : '#e8710a';
-            btnHtml = `<button class="btn primary" style="padding:2px 8px; min-height:0; width:auto; font-size:10px; background:${statusColor}; border:none;" onclick="markDebtInstallmentPaidDirectly('${item.id}', '${dateStr}', ${currentPay})">✔ Pagar</button>`;
+            
+            // 🌟 MAGIA: Si está amortizada parcialmente (tu Cuota 3 de $1.5), te lo avisa claro
+            if (coveredByAmort > 0.01) {
+                statusText += ` <span style="color:var(--md-primary)">(Resta ${fmt(requiredPay)})</span>`;
+            }
+            btnHtml = `<button class="btn primary" style="padding:2px 8px; min-height:0; width:auto; font-size:10px; background:${statusColor}; border:none;" onclick="markDebtInstallmentPaidDirectly('${item.id}', '${dateStr}', ${requiredPay})">✔ Pagar</button>`;
         }
         
+        const visualTotal = ov.done ? (coveredByAmort + effectivePayToAccumulate + excessOverTotal) : currentPay;
+
         html += `
             <div style="display:flex; justify-content:space-between; align-items:center; background:var(--md-surface); padding:8px 12px; border-radius:8px; border:1px solid var(--md-outline-variant)30;">
                 <div>
@@ -3810,14 +3672,14 @@ function getInstallmentBreakdownHtml(item) {
                     <div style="font-size:11px; color:${statusColor}; font-weight:bold; margin-top:2px;">${statusText}</div>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-weight:900; font-size:13px; color:var(--md-on-surface);">${fmt(currentPay)}</span>
+                    <span style="font-weight:900; font-size:13px; color:var(--md-on-surface);">${fmt(visualTotal)}</span>
                     ${btnHtml}
                 </div>
             </div>
         `;
         
-        accumulated += currentPay; installmentNum++;
-        advanceDateFreq(curr, freq); // 🌟 Usamos el motor inteligente
+        accumulated += (coveredByAmort + effectivePayToAccumulate); installmentNum++;
+        advanceDateFreq(curr, freq, item.dueDay); // 🌟 Respetando las fechas 12-27
     }
     
     html += `</div></div>`;
@@ -3832,99 +3694,6 @@ window.markDebtInstallmentPaidDirectly = function(debtId, dateStr, amount) {
     if (modalIndex !== null) openEdit('debt', modalIndex);
     showToast("Cuota marcada como pagada", "✅");
 };
-
-window.undoFullPaymentByKey = function(key) {
-    showDialog({
-        title: 'Deshacer Pago', msg: '¿Seguro que deseas eliminar este pago? La cuota volverá a estar pendiente inmediatamente.',
-        onConfirm: () => {
-            const p = prof();
-            if(p.overrides && p.overrides[key]) {
-                delete p.overrides[key];
-                saveApp(); runPlan(); 
-                if (modalIndex !== null && modalType === 'debt') openEdit('debt', modalIndex);
-                else closeModal();
-                showToast("Pago eliminado con éxito", "🔄");
-            }
-        }
-    });
-};
-
-function markCompleted(type, refId, originalDate) {
-   modalType = 'complete';
-   modalIndex = { type: type, refId: refId, originalDate: originalDate }; 
-   window.currentCompleteMode = 'full';
-   
-   const p = prof();
-   const key = type + '_' + refId + '_' + originalDate;
-   const override = (p.overrides || {})[key] || {};
-
-   const ev = plan.find(x => x.type === type && x.ref.id === refId && x.originalDate === originalDate && !x.done && !x.isPartial);
-   const expectedAmt = ev ? Math.abs(ev.amt) : 0;
-   window.tempExpectedAmt = expectedAmt; 
-
-   byId('modalTitle').textContent = 'Gestionar Movimiento';
-   byId('btnDelete').style.display = 'none';
-   byId('btnSave').style.display = 'inline-flex';
-   
-   let partialsHtml = '';
-   if (override.partials && override.partials.length > 0) {
-       partialsHtml += '<div style="margin-bottom:16px; background:var(--md-surface-variant); padding:12px; border-radius:12px; border:1px solid var(--md-outline-variant);">';
-       partialsHtml += '<div class="small" style="font-weight:bold; margin-bottom:8px; color:var(--md-primary);">Abonos en esta cuota:</div>';
-       override.partials.forEach((pt, pIdx) => {
-           const cHtml = pt.comment ? `<div style="font-size:11px; color:var(--md-on-surface-variant); margin-top:2px;">💬 ${pt.comment}</div>` : '';
-           partialsHtml += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; border-bottom:1px dashed var(--md-outline-variant); padding-bottom:6px;">
-              <div style="flex:1;">
-                 <div style="font-weight:bold;">📅 ${formatDate(pt.date)}</div>
-                 ${cHtml}
-              </div>
-              <div style="display:flex; align-items:center; gap:8px;">
-                 <span style="font-weight:bold; color:var(--md-on-surface); font-size:14px;">+${fmt(pt.amt)}</span>
-                 <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="deletePartialByKey('${key}', ${pIdx})">✕</button>
-              </div>
-           </div>`;
-       });
-       partialsHtml += '</div>';
-   }
-   
-   byId('modalBody').innerHTML = `
-    ${partialsHtml}
-    <div class="tabs" style="margin-bottom:16px; background:var(--md-surface-variant); border-radius:12px; padding:4px;">
-       <div class="tab active" style="flex:1; text-align:center; border:none; border-radius:8px; background:var(--md-surface); color:var(--md-primary); box-shadow:0 1px 3px rgba(0,0,0,0.1);" onclick="switchCompleteTab('full', this)">Pago Total</div>
-       <div class="tab" style="flex:1; text-align:center; border:none; border-radius:8px; color:var(--md-on-surface-variant);" onclick="switchCompleteTab('partial', this)">Abono Parcial</div>
-    </div>
-
-    <div id="tab-comp-full" class="tab-content active" style="padding:4px;">
-        <div>
-            <label>Fecha real de pago:</label>
-            <input type="date" id="f_actual_date" value="${today()}" required>
-        </div>
-        <div class="small" style="color:var(--md-primary); margin-top:8px;">
-            Se marcará como ✔ Completado por el monto restante de <b>${fmt(expectedAmt)}</b>.
-        </div>
-    </div>
-
-    <div id="tab-comp-partial" class="tab-content" style="display:none; padding:4px;">
-        <div class="grid grid2">
-            <div><label>Monto a abonar ($)</label><input type="number" id="f_partial_amt" placeholder="Ej. 30" max="${expectedAmt}" required></div>
-            <div><label>Fecha del abono</label><input type="date" id="f_partial_date" value="${today()}" required></div>
-        </div>
-        <div style="margin-top:12px;">
-            <label>Comentario / Referencia (Opcional)</label>
-            <input type="text" id="f_partial_comment" placeholder="Ej. Pago móvil, Efectivo, Banesco...">
-        </div>
-        <div class="small" style="color:var(--md-primary); margin-top:8px;">
-            Se registrará este abono y el resto seguirá como "Pendiente".
-        </div>
-    </div>
-
-    <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
-    <div>
-         <button class="btn danger" style="width:100%" onclick="discardMovement()">🚫 Descartar / Omitir este pago</button>
-    </div>
-   `;
-   
-   byId('modal').classList.add('active');
-}
 
 window.switchCompleteTab = function(mode, el) {
     const parent = el.parentElement;
@@ -4670,8 +4439,7 @@ function runPlan(){
           
           if (isCredit && x.hasInterest && x.apr) {
               const months = x.installments || 1;
-              const interesTotal = (totalDebt * x.apr) * (months / 12);
-              totalDebt += interesTotal;
+              totalDebt += (totalDebt * x.apr) * (months / 12);
           }
 
           let accumulated = 0; 
@@ -4681,19 +4449,45 @@ function runPlan(){
               if (totalDebt > 0 && accumulated >= totalDebt - 0.01) break; 
               if (curr > limitDate) break;
               
+              const dateStr = curr.toISOString().slice(0, 10);
+              const key = 'debt_' + x.id + '_' + dateStr;
+              const ov = p.overrides[key] || {};
+              
               let currentPay = pay;
-              if (totalDebt > 0 && accumulated + pay > totalDebt) {
-                  currentPay = totalDebt - accumulated; 
+              if (totalDebt > 0 && accumulated + currentPay > totalDebt) {
+                  currentPay = totalDebt - accumulated;
               }
 
-              if (accumulated >= amortized - 0.01) {
-                  const dateStr = curr.toISOString().slice(0, 10);
-                  // 🌟 AQUÍ ELIMINAMOS EL PREFIJO PARA QUE SALGA EL NOMBRE LIMPIO
-                  addOccur(map, dateStr, x.name, 'debt', -currentPay, x);
+              // 🌟 LA MAGIA: Descontamos lo que el "Adelanto Inicial" haya cubierto de ESTA cuota específica
+              let coveredByAmort = 0;
+              if (amortized > accumulated) {
+                  coveredByAmort = Math.min(currentPay, amortized - accumulated);
+              }
+              let requiredPay = currentPay - coveredByAmort;
+
+              let effectivePayToAccumulate = requiredPay;
+              if (ov.done && ov.amt !== undefined) {
+                  effectivePayToAccumulate = parseFloat(ov.amt);
+                  const partialsSum = (ov.partials || []).reduce((sum, pt) => sum + parseFloat(pt.amt||0), 0);
+                  effectivePayToAccumulate += partialsSum;
               }
 
-              accumulated += currentPay;
-              advanceDateFreq(curr, freq); // 🌟 Usamos el motor inteligente
+              let excessOverTotal = 0;
+              if (totalDebt > 0 && accumulated + coveredByAmort + effectivePayToAccumulate > totalDebt) {
+                  excessOverTotal = (accumulated + coveredByAmort + effectivePayToAccumulate) - totalDebt; 
+                  effectivePayToAccumulate = totalDebt - accumulated - coveredByAmort; 
+              }
+
+              // Solo dibuja la cuota en el calendario si le falta dinero por pagar (tu $1.5)
+              if (requiredPay > 0.01) {
+                  addOccur(map, dateStr, x.name, 'debt', -requiredPay, x); 
+                  if (excessOverTotal > 0.01) {
+                      addOccur(map, dateStr, x.name + ' (Exceso pagado/perdido)', 'expense', -excessOverTotal, x);
+                  }
+              }
+
+              accumulated += (coveredByAmort + effectivePayToAccumulate);
+              advanceDateFreq(curr, freq, x.dueDay); // 🌟 Ahora le pasamos tus fechas (12-27)
           }
       } else if (x.type === 'card') {
           const pay = parseFloat(x.minPay) || 0;
@@ -4707,20 +4501,15 @@ function runPlan(){
           for (let year = dStartYear; year <= endYear; year++) {
               let mStart = (year === dStartYear) ? dStartMonth : 0;
               let mEnd = (year === endYear) ? endMonth : 11;
-              
               for (let month = mStart; month <= mEnd; month++) {
                   if (occurrences >= maxOccurrences) break;
-
                   if (x.cutDay) {
                       const cutDate = getDateInMonth(year, month, x.cutDay);
                       if (cutDate >= debtStartStr) addOccur(map, cutDate, 'Corte: '+x.name, 'debt_cut', 0, x);
                   }
                   if (x.dueDay) {
                       const dueDate = getDateInMonth(year, month, x.dueDay);
-                      if (dueDate >= debtStartStr) {
-                          addOccur(map, dueDate, 'Pago: '+x.name, 'debt', -pay, x);
-                          occurrences++; 
-                      }
+                      if (dueDate >= debtStartStr) { addOccur(map, dueDate, 'Pago: '+x.name, 'debt', -pay, x); occurrences++; }
                   }
               }
               if (occurrences >= maxOccurrences) break;
@@ -5199,89 +4988,6 @@ function openDayModal(dateStr) {
     byId('modal').classList.add('active');
 }
 
-function showDetails(type, refId, originalDate, planDate) {
-     const ev = plan.find(x => x.type === type && x.ref.id === refId && x.originalDate === originalDate && x.date === planDate);
-     if(!ev) return;
-     const p = prof(); // 🌟 REPARADO: Declaramos el perfil
-     
-     modalType = 'details';
-     byId('modalTitle').textContent = 'Detalle del Movimiento';
-     byId('btnDelete').style.display = 'none';
-     byId('btnSave').style.display = 'none'; 
-     
-     let html = '<div class="grid" style="gap:12px;">';
-     
-     const prefix = ev.isDelayed ? 'pp - ' : '';
-     html += '<div style="font-size:18px; font-weight:bold;">' + prefix + ev.label.replace(' (✓)', '') + '</div>';
-     
-     let colorMonto = ev.amt > 0 ? '#0f9d58' : '#1a73e8';
-     if (ev.criticalDelay) colorMonto = '#d93025';
-     
-     html += '<div style="font-size:28px; font-weight:900; color:' + colorMonto + '">' + fmt(Math.abs(ev.amt)) + '</div>';
-     
-     // 🌟 REPARACIÓN: Desglose auditivo de fechas en la vista de detalles
-     if (ev.done) {
-         if (ev.originalDate !== ev.date) {
-             html += `<div class="grid grid2">
-                        <div><span class="small">Fecha Planificada:</span><br><b style="font-size:14px; color:var(--md-outline); text-decoration:line-through;">${formatDate(ev.originalDate)}</b></div>
-                        <div><span class="small">Fecha Real de Pago:</span><br><b style="font-size:14px; color:#0f9d58;">✓ ${formatDate(ev.date)}</b></div>
-                      </div>`;
-         } else {
-             html += `<div><span class="small">Pagado el día:</span><br><b style="font-size:15px; color:#0f9d58;">✓ ${formatDate(ev.date)}</b></div>`;
-         }
-     } else {
-         html += '<div><span class="small">Fecha Planificada:</span><br><b style="font-size:15px">' + formatDate(ev.originalDate) + '</b></div>';
-         if (ev.userPostponed || ev.isDelayed) {
-             html += '<div><span class="small">Proyectado para el:</span><br><b style="color:#9c27b0; font-size:15px">' + formatDate(ev.date) + '</b></div>';
-         }
-     }
-     
-     if (ev.isDelayed) {
-         html += '<div><span class="small">Movido por falta de liquidez al:</span><br><b style="color:#9c27b0; font-size:15px">' + formatDate(ev.date) + '</b></div>';
-     }
-     if (ev.criticalDelay) {
-         html += '<div style="color:#d93025; font-weight:bold; padding:8px; background:#fce8e6; border-radius:8px;">⚠️ Retraso Crítico (Superó 2 ingresos)</div>';
-     }
-     
-     const key = type + '_' + refId + '_' + originalDate;
-     const override = (p.overrides || {})[key];
-     
-     if (override && override.partials && override.partials.length > 0) {
-         html += '<div style="margin-top:12px; background:var(--md-surface-variant); padding:12px; border-radius:12px; border:1px solid var(--md-outline-variant);">';
-         html += '<div class="small" style="font-weight:bold; margin-bottom:8px; color:var(--md-primary);">Abonos Parciales Registrados en esta cuota:</div>';
-         
-         override.partials.forEach((pt, pIdx) => {
-             const cHtml = pt.comment ? `<div style="font-size:11px; color:var(--md-on-surface-variant); margin-top:2px;">💬 ${pt.comment}</div>` : '';
-             html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; border-bottom:1px dashed var(--md-outline-variant); padding-bottom:6px;">
-                <div style="flex:1;">
-                   <div style="font-weight:bold;">📅 ${formatDate(pt.date)}</div>
-                   ${cHtml}
-                </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                   <span style="font-weight:bold; color:var(--md-on-surface); font-size:14px;">${fmt(pt.amt)}</span>
-                   <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="deletePartialByKey('${key}', ${pIdx})">✕</button>
-                </div>
-             </div>`;
-         });
-         html += '</div>';
-     }
-
-     if (ev.done) {
-         html += '<div><span class="small">Estado actual:</span><br><b style="color:#0f9d58">✔ Pagado/Completado</b></div>';
-         html += `<button class="btn danger" style="margin-top:12px; width:100%; border-radius:8px;" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer (Borra abonos y pagos)</button>`;
-     } else {
-         html += '<hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 8px 0;">';
-         html += `<button class="btn" style="margin-bottom:8px; width:100%; background:var(--md-surface-variant); color:var(--md-on-surface); border:1px solid var(--md-outline-variant);" onclick="promptPostpone('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">🗓️ Posponer para otra fecha</button>`;
-         if (override && override.partials && override.partials.length > 0) {
-             html += `<button class="btn danger" style="margin-bottom:8px; width:100%; background:transparent; color:var(--md-error); border:1px solid var(--md-error);" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer Abonos</button>`;
-         }
-         html += '<button class="btn primary" style="width:100%" onclick="markCompleted(\'' + ev.type + '\', \'' + ev.ref.id + '\', \'' + ev.originalDate + '\')">Gestionar / Completar Pago</button>';
-     }
-     
-     html += '</div>';
-     byId('modalBody').innerHTML = html;
-     byId('modal').classList.add('active');
-}
 
 window.revertCompleted = function(type, refId, originalDate) {
     showDialog({
@@ -5292,7 +4998,31 @@ window.revertCompleted = function(type, refId, originalDate) {
             const key = type + '_' + refId + '_' + originalDate;
             if(p.overrides && p.overrides[key]) {
                 delete p.overrides[key];
+                
+                // 🌟 LIMPIEZA DE EXCESOS HUÉRFANOS: Si este pago creó un exceso, lo borramos de la pestaña Únicas
+                p.expenses = p.expenses.filter(x => x.id !== 'exc_' + key);
+                
                 saveApp(); closeModal(); runPlan(); showToast("Pago revertido con éxito", "🔄");
+            }
+        }
+    });
+};
+
+window.undoFullPaymentByKey = function(key) {
+    showDialog({
+        title: 'Deshacer Pago', msg: '¿Seguro que deseas eliminar este pago? La cuota volverá a estar pendiente inmediatamente.',
+        onConfirm: () => {
+            const p = prof();
+            if(p.overrides && p.overrides[key]) {
+                delete p.overrides[key];
+                
+                // 🌟 LIMPIEZA DE EXCESOS HUÉRFANOS
+                p.expenses = p.expenses.filter(x => x.id !== 'exc_' + key);
+                
+                saveApp(); runPlan(); 
+                if (modalIndex !== null && modalType === 'debt') openEdit('debt', modalIndex);
+                else closeModal();
+                showToast("Pago eliminado con éxito", "🔄");
             }
         }
     });
@@ -6676,6 +6406,310 @@ window.initP2PListener = function() {
     });
 };
 
+function showDetails(type, refId, originalDate, planDate) {
+     const ev = plan.find(x => x.type === type && x.ref.id === refId && x.originalDate === originalDate && x.date === planDate);
+     if(!ev) return;
+     const p = prof(); 
+     
+     modalType = 'details';
+     byId('modalTitle').textContent = 'Detalle del Movimiento';
+     byId('btnDelete').style.display = 'none';
+     byId('btnSave').style.display = 'none'; 
+     
+     let html = '<div class="grid" style="gap:12px;">';
+     
+     const prefix = ev.isDelayed ? 'pp - ' : '';
+     html += '<div style="font-size:18px; font-weight:bold;">' + prefix + ev.label.replace(' (✓)', '') + '</div>';
+     
+     let colorMonto = ev.amt > 0 ? '#0f9d58' : '#1a73e8';
+     if (ev.criticalDelay) colorMonto = '#d93025';
+     
+     const key = type + '_' + refId + '_' + originalDate;
+     const override = (p.overrides || {})[key] || {};
+     const isInstallmentFullyDone = override.done === true;
+
+     // 🌟 LÓGICA VISUAL: PLANIFICADO VS REAL
+     const actualAmt = Math.abs(ev.amt);
+     const plannedAmt = ev.plannedAmt !== undefined ? ev.plannedAmt : actualAmt;
+
+     if (isInstallmentFullyDone && Math.abs(actualAmt - plannedAmt) > 0.01) {
+         html += `
+            <div style="display:flex; align-items:baseline; gap:12px;">
+                <div style="font-size:28px; font-weight:900; color:${colorMonto}">${fmt(actualAmt)}</div>
+                <div style="font-size:14px; font-weight:bold; color:var(--md-outline); text-decoration:line-through;">Plan: ${fmt(plannedAmt)}</div>
+            </div>
+         `;
+     } else {
+         html += '<div style="font-size:28px; font-weight:900; color:' + colorMonto + '">' + fmt(actualAmt) + '</div>';
+     }
+     
+     if (isInstallmentFullyDone) {
+         const showDate = override.actualDate || ev.date;
+         if (originalDate !== showDate) {
+             html += `<div class="grid grid2">
+                        <div><span class="small">Fecha Planificada:</span><br><b style="font-size:14px; color:var(--md-outline); text-decoration:line-through;">${formatDate(originalDate)}</b></div>
+                        <div><span class="small">Fecha Real de Pago:</span><br><b style="font-size:14px; color:#0f9d58;">✓ ${formatDate(showDate)}</b></div>
+                      </div>`;
+         } else {
+             html += `<div><span class="small">Pagado el día:</span><br><b style="font-size:15px; color:#0f9d58;">✓ ${formatDate(showDate)}</b></div>`;
+         }
+     } else {
+         html += '<div><span class="small">Fecha Planificada:</span><br><b style="font-size:15px">' + formatDate(originalDate) + '</b></div>';
+         if (ev.userPostponed || ev.isDelayed) {
+             html += '<div><span class="small">Proyectado para el:</span><br><b style="color:#9c27b0; font-size:15px">' + formatDate(ev.date) + '</b></div>';
+         }
+     }
+     
+     if (ev.isDelayed && !isInstallmentFullyDone) {
+         html += '<div><span class="small">Movido por falta de liquidez al:</span><br><b style="color:#9c27b0; font-size:15px">' + formatDate(ev.date) + '</b></div>';
+     }
+     if (ev.criticalDelay) {
+         html += '<div style="color:#d93025; font-weight:bold; padding:8px; background:#fce8e6; border-radius:8px;">⚠️ Retraso Crítico (Superó 2 ingresos)</div>';
+     }
+     
+     if (override.partials && override.partials.length > 0) {
+         html += '<div style="margin-top:12px; background:var(--md-surface-variant); padding:12px; border-radius:12px; border:1px solid var(--md-outline-variant);">';
+         html += '<div class="small" style="font-weight:bold; margin-bottom:8px; color:var(--md-primary);">Abonos Parciales Registrados en esta cuota:</div>';
+         
+         override.partials.forEach((pt, pIdx) => {
+             const cHtml = pt.comment ? `<div style="font-size:11px; color:var(--md-on-surface-variant); margin-top:2px;">💬 ${pt.comment}</div>` : '';
+             html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; border-bottom:1px dashed var(--md-outline-variant); padding-bottom:6px;">
+                <div style="flex:1;">
+                   <div style="font-weight:bold;">📅 ${formatDate(pt.date)}</div>
+                   ${cHtml}
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                   <span style="font-weight:bold; color:var(--md-on-surface); font-size:14px;">${fmt(pt.amt)}</span>
+                   <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="deletePartialByKey('${key}', ${pIdx})">✕</button>
+                </div>
+             </div>`;
+         });
+         html += '</div>';
+     }
+
+     html += '<hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 12px 0;">';
+     
+     if (isInstallmentFullyDone) {
+         html += '<div><span class="small">Estado actual:</span><br><b style="color:#0f9d58">✔ Totalmente Pagada / Completada</b></div>';
+         html += `<button class="btn danger" style="margin-top:12px; width:100%; border-radius:8px;" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Deshacer Pago Completo</button>`;
+     } else {
+         html += '<div><span class="small">Estado de la Cuota:</span><br><b style="color:#e8710a">⏳ Pendiente / Pago Incompleto</b></div>';
+         
+         html += `<button class="btn" style="margin-top:12px; margin-bottom:8px; width:100%; background:var(--md-surface-variant); color:var(--md-on-surface); border:1px solid var(--md-outline-variant);" onclick="promptPostpone('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">🗓️ Posponer para otra fecha</button>`;
+         
+         if (override.partials && override.partials.length > 0) {
+             html += `<button class="btn danger" style="margin-bottom:8px; width:100%; background:transparent; color:var(--md-error); border:1px solid var(--md-error);" onclick="revertCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">↩ Borrar TODOS los abonos</button>`;
+         }
+         html += `<button class="btn primary" style="width:100%" onclick="markCompleted('${ev.type}', '${ev.ref.id}', '${ev.originalDate}')">➕ Pagar / Abonar a esta cuota</button>`;
+     }
+     
+     html += '</div>';
+     byId('modalBody').innerHTML = html;
+     byId('modal').classList.add('active');
+}
+
+function markCompleted(type, refId, originalDate) {
+   modalType = 'complete';
+   modalIndex = { type: type, refId: refId, originalDate: originalDate }; 
+   window.currentCompleteMode = 'full';
+   
+   const p = prof();
+   const key = type + '_' + refId + '_' + originalDate;
+   const override = (p.overrides || {})[key] || {};
+
+   const ev = plan.find(x => x.type === type && x.ref.id === refId && x.originalDate === originalDate && !x.done && !x.isPartial);
+   const expectedAmt = ev ? Math.abs(ev.amt) : 0;
+   
+   // 🌟 NUEVO: Calculamos la deuda real restante para saber si habrá un exceso
+   let trueRemaining = expectedAmt;
+   let debtName = ev ? ev.ref.name : 'Deuda';
+   if (type === 'debt') {
+       const debtObj = p.debts.find(d => d.id === refId);
+       if (debtObj) {
+           trueRemaining = getRemainingSpecialDebt(debtObj);
+           debtName = debtObj.name;
+       }
+   }
+   
+   byId('modalTitle').textContent = 'Gestionar Movimiento';
+   byId('btnDelete').style.display = 'none';
+   byId('btnSave').style.display = 'inline-flex';
+   
+   let partialsHtml = '';
+   if (override.partials && override.partials.length > 0) {
+       partialsHtml += '<div style="margin-bottom:16px; background:var(--md-surface-variant); padding:12px; border-radius:12px; border:1px solid var(--md-outline-variant);">';
+       partialsHtml += '<div class="small" style="font-weight:bold; margin-bottom:8px; color:var(--md-primary);">Abonos en esta cuota:</div>';
+       override.partials.forEach((pt, pIdx) => {
+           const cHtml = pt.comment ? `<div style="font-size:11px; color:var(--md-on-surface-variant); margin-top:2px;">💬 ${pt.comment}</div>` : '';
+           partialsHtml += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; border-bottom:1px dashed var(--md-outline-variant); padding-bottom:6px;">
+              <div style="flex:1;">
+                 <div style="font-weight:bold;">📅 ${formatDate(pt.date)}</div>
+                 ${cHtml}
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                 <span style="font-weight:bold; color:var(--md-on-surface); font-size:14px;">+${fmt(pt.amt)}</span>
+                 <button class="btn icon danger" style="padding:4px; min-height:0; width:auto; border:none; background:transparent; font-size:14px;" onclick="deletePartialByKey('${key}', ${pIdx})">✕</button>
+              </div>
+           </div>`;
+       });
+       partialsHtml += '</div>';
+   }
+   
+   byId('modalBody').innerHTML = `
+    ${partialsHtml}
+    
+    <!-- 🌟 INYECTAMOS LOS DATOS OCULTOS PARA QUE EL GUARDADO SEPA EL LÍMITE -->
+    <input type="hidden" id="f_comp_max_rem" value="${trueRemaining}">
+    <input type="hidden" id="f_comp_debt_name" value="${debtName}">
+
+    <div class="tabs" style="margin-bottom:16px; background:var(--md-surface-variant); border-radius:12px; padding:4px;">
+       <div class="tab active" style="flex:1; text-align:center; border:none; border-radius:8px; background:var(--md-surface); color:var(--md-primary); box-shadow:0 1px 3px rgba(0,0,0,0.1);" onclick="switchCompleteTab('full', this)">Pago Total</div>
+       <div class="tab" style="flex:1; text-align:center; border:none; border-radius:8px; color:var(--md-on-surface-variant);" onclick="switchCompleteTab('partial', this)">Abono Parcial</div>
+    </div>
+
+    <div id="tab-comp-full" class="tab-content active" style="padding:4px;">
+        <div class="grid grid2">
+            <div><label>Monto Real Pagado ($):</label><input type="number" id="f_actual_amt" value="${expectedAmt}" required></div>
+            <div><label>Fecha del pago:</label><input type="date" id="f_actual_date" value="${today()}" required></div>
+        </div>
+        <div class="small" style="color:var(--md-primary); margin-top:8px;">
+            Si pagas <b>más</b> de lo sugerido (${fmt(expectedAmt)}), el excedente se abonará automáticamente al capital. Si la deuda queda en 0, el sobrante irá a Transacciones Únicas.
+        </div>
+    </div>
+
+    <div id="tab-comp-partial" class="tab-content" style="display:none; padding:4px;">
+        <div class="grid grid2">
+            <div><label>Monto a abonar ($):</label><input type="number" id="f_partial_amt" placeholder="Ej. 10" required></div>
+            <div><label>Fecha del abono:</label><input type="date" id="f_partial_date" value="${today()}" required></div>
+        </div>
+        <div style="margin-top:12px;">
+            <label>Referencia (Opcional):</label>
+            <input type="text" id="f_partial_comment" placeholder="Ej. Pago móvil, Efectivo...">
+        </div>
+    </div>
+
+    <hr style="border:0; border-top:1px solid var(--md-outline-variant); margin: 16px 0;">
+    <div>
+         <button class="btn danger" style="width:100%" onclick="discardMovement()">🚫 Descartar / Omitir este pago</button>
+    </div>
+   `;
+   
+   byId('modal').classList.add('active');
+}
+
+
+window.showDebtProjection = function() {
+    const el = byId('debtProjection'); if(!el) return;
+    const t = byId('f_type').value; const p = prof();
+    const customDef = (p.settings.customDebts || []).find(c => c.id === t);
+    
+    // 🌟 MATEMÁTICA CORREGIDA: Partimos de la deuda total original ($720)
+    const originalBalance = parseFloat(byId('f_balance').value) || 0;
+    const isAmortized = byId('f_hasAmortized') && byId('f_hasAmortized').checked;
+    const amortized = isAmortized ? (parseFloat(byId('f_amortized').value) || 0) : 0;
+    
+    let paidOverrides = 0;
+    if (modalIndex !== null && modalType === 'debt') {
+        const debtId = p.debts[modalIndex].id;
+        Object.keys(p.overrides || {}).forEach(k => {
+            if (k.startsWith('debt_' + debtId + '_')) {
+                const ov = p.overrides[k];
+                if (ov.done || ov.discarded) {
+                    paidOverrides += (ov.amt !== undefined ? parseFloat(ov.amt) : parseFloat(p.debts[modalIndex].amount || p.debts[modalIndex].minPay || 0));
+                } else if (ov.partials && ov.partials.length > 0) {
+                    ov.partials.forEach(pt => { paidOverrides += (parseFloat(pt.amt) || 0); });
+                }
+            }
+        });
+    }
+
+    // El dinero real que aún debes
+    const trueRemaining = Math.max(0, originalBalance - amortized - paidOverrides);
+
+    if (customDef || t === 'fixed' || t === 'noloan') {
+        el.style.display = 'block';
+        const instInput = parseInt(byId('f_installments').value) || 0; 
+        const quotaInput = parseFloat(byId('f_quota').value) || 0;
+        
+        let calcInstallmentsTotal = 0; let calcQuota = 0; let pendingInstallments = 0;
+        
+        // Calculamos la cuota contra el Balance Original
+        if (instInput > 0) {
+            calcInstallmentsTotal = instInput;
+            calcQuota = originalBalance / calcInstallmentsTotal;
+            pendingInstallments = Math.ceil(trueRemaining / calcQuota);
+        } else if (quotaInput > 0) {
+            calcQuota = quotaInput;
+            calcInstallmentsTotal = Math.ceil(originalBalance / calcQuota);
+            pendingInstallments = Math.ceil(trueRemaining / calcQuota);
+        }
+        
+        let interesTotal = 0;
+        let totalWithInterest = trueRemaining;
+
+        if ((t === 'fixed' || (customDef && customDef.hasInterest)) && byId('f_hasInterest') && byId('f_hasInterest').value === 'true') {
+            const apr = byId('f_apr') ? ((parseFloat(byId('f_apr').value) || 0) / 100) : 0.60;
+            interesTotal = (trueRemaining * apr) * (pendingInstallments / 12);
+            totalWithInterest += interesTotal;
+        }
+
+        let endDateStr = 'Sin calcular';
+        if (pendingInstallments > 0 && calcQuota > 0 && byId('f_start').value) {
+            const startD = new Date(byId('f_start').value + 'T12:00:00');
+            const freq = customDef ? (customDef.freq || 'monthly') : 'monthly';
+            const configuredDueDay = byId('f_due') ? byId('f_due').value : ''; // 🌟 Respetamos tu configuración de días 12-27
+            
+            let paidInstallmentsCount = calcInstallmentsTotal - pendingInstallments;
+            for (let i = 0; i < paidInstallmentsCount; i++) advanceDateFreq(startD, freq, configuredDueDay);
+            
+            const endD = new Date(startD);
+            for (let i = 0; i < pendingInstallments - 1; i++) advanceDateFreq(endD, freq, configuredDueDay);
+            
+            endDateStr = endD.toISOString().slice(0, 10);
+            if(byId('f_calculated_end')) byId('f_calculated_end').value = endDateStr;
+        }
+        
+        el.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Deuda Original (Total):</span> <b>${fmt(originalBalance)}</b></div>
+            ${amortized > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Adelanto Inicial:</span> <b style="color:#0f9d58;">-${fmt(amortized)}</b></div>` : ''}
+            ${paidOverrides > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Abonos Históricos:</span> <b style="color:#0f9d58;">-${fmt(paidOverrides)}</b></div>` : ''}
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Restante por Pagar:</span> <b style="color:var(--md-error);">${fmt(totalWithInterest)}</b></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cuotas Pendientes:</span> <b>${pendingInstallments || '0'}</b> <span style="font-size:10px; color:var(--md-outline);">(de ${calcInstallmentsTotal || '?'})</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Monto por Cuota:</span> <b style="color:var(--md-primary);">${fmt(calcQuota)}</b></div>
+            <div style="display:flex; justify-content:space-between; margin-top:8px; border-top:1px solid #e0e0e3; padding-top:8px;"><span>Último cobro estimado:</span> <b style="color:#0f9d58;">${endDateStr !== 'Sin calcular' ? formatDate(endDateStr) : endDateStr}</b></div>
+        `;
+        if(byId('f_min')) byId('f_min').value = calcQuota.toFixed(2);
+        
+    } else if (t === 'card') {
+        el.style.display = 'block';
+        const hasInterest = byId('f_hasInterest') ? byId('f_hasInterest').value === 'true' : true;
+        const apr = byId('f_apr') ? ((parseFloat(byId('f_apr').value) || 0) / 100) : 0.60;
+        const planv = byId('f_plan') ? byId('f_plan').value : 'full';
+        const months = planv === 'full' ? 1 : (parseInt(planv.split('-')[1]) || 1);
+        
+        let calcMin = 0; let total = trueRemaining;
+        
+        if (!hasInterest) {
+            calcMin = trueRemaining / months;
+            el.innerHTML = `<div style="display:flex; justify-content:space-between;"><span>Deuda Restante a Pagar:</span> <b>${fmt(trueRemaining)}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-top:8px; border-top:1px solid #e0e0e3; padding-top:8px;"><span>Cuota Mensual:</span> <b style="color:var(--md-primary);">${fmt(calcMin)}</b></div>`;
+        } else {
+            const interesTotal = (trueRemaining * apr) * (months / 12);
+            total = trueRemaining + interesTotal;
+            calcMin = total / months;
+            el.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Deuda Original (Total):</span> <b>${fmt(originalBalance)}</b></div>
+                            ${amortized > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Adelanto Inicial:</span> <b style="color:#0f9d58;">-${fmt(amortized)}</b></div>` : ''}
+                            ${paidOverrides > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Abonos Históricos:</span> <b style="color:#0f9d58;">-${fmt(paidOverrides)}</b></div>` : ''}
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Restante por Pagar:</span> <b>${fmt(trueRemaining)}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#d93025;"><span>Intereses (${months} mes):</span> <b>+${fmt(interesTotal)}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-top:8px; border-top:1px solid #e0e0e3; padding-top:8px;"><span>Total a Pagar:</span> <b>${fmt(total)}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span>Cuota Mensual:</span> <b style="color:var(--md-primary);">${fmt(calcMin)}</b></div>`;
+        }
+        if(byId('f_min')) byId('f_min').value = calcMin.toFixed(2);
+    } else el.style.display = 'none';
+};
+
+
 
 window.showContactCard = function(email, alias, localPhone) {
     if (!window.db) return showToast("Conéctate a internet para ver la tarjeta.", "⚠️");
@@ -7337,21 +7371,17 @@ function renderCalendar() {
         const isPending = !e.done && !isOverdue && !isPostponed;
         const isDone = e.done;
 
-        // 🌟 NUEVA LÓGICA DE EXCLUSIÓN INTELIGENTE
-        if (window.activeStateFilters && window.activeStateFilters.length > 0) {
-            // Si "Ocultar Listos" está activo y el evento ya está hecho, se descarta de inmediato
-            if (window.activeStateFilters.includes('done') && isDone) return false;
-            
-            // Para los demás filtros (pendientes, atrasados, pospuestos): si hay alguno activo,
-            // el evento debe coincidir con al menos uno de ellos.
-            const hasOtherFilters = window.activeStateFilters.some(f => f !== 'done');
-            if (hasOtherFilters) {
-                let show = false;
-                if (window.activeStateFilters.includes('overdue') && isOverdue) show = true;
-                if (window.activeStateFilters.includes('postponed') && isPostponed) show = true;
-                if (window.activeStateFilters.includes('pending') && isPending) show = true;
-                if (!show) return false;
-            }
+        // 🌟 MAGIA: Si el botón "Mostrar Listos" NO está presionado, y el evento está listo, lo ocultamos.
+        if (!window.activeStateFilters.includes('show_done') && isDone) return false;
+
+        // Si hay otros botones activos (pendientes, atrasados), debe coincidir
+        const hasOtherFilters = window.activeStateFilters.some(f => f !== 'show_done');
+        if (hasOtherFilters) {
+            let show = false;
+            if (window.activeStateFilters.includes('overdue') && isOverdue) show = true;
+            if (window.activeStateFilters.includes('postponed') && isPostponed) show = true;
+            if (window.activeStateFilters.includes('pending') && isPending) show = true;
+            if (!show) return false;
         }
         
         if (window.activeOutflowFilters && window.activeOutflowFilters.length > 0) {
@@ -7432,7 +7462,7 @@ function renderCalendar() {
       { id: 'pending', name: '🔴 Pendientes' },
       { id: 'overdue', name: '⚠️ Atrasados' },
       { id: 'postponed', name: '🔄 Pospuestos' },
-      { id: 'done', name: '👁️‍🗨️ Ocultar Listos' } // 🌟 Nombre actualizado para reflejar la UX
+      { id: 'show_done', name: '👁️‍🗨️ Mostrar Listos' } // 🌟 Nuevo texto y comportamiento
   ];
   states.forEach(s => {
       const isActive = window.activeStateFilters && window.activeStateFilters.includes(s.id);
@@ -7457,18 +7487,17 @@ function renderListView() {
         const isPending = !e.done && !isOverdue && !isPostponed;
         const isDone = e.done;
 
-        // 🌟 LÓGICA DE EXCLUSIÓN HOMOLOGADA EN LISTA
-        if (window.activeStateFilters && window.activeStateFilters.length > 0) {
-            if (window.activeStateFilters.includes('done') && isDone) return false;
-            
-            const hasOtherFilters = window.activeStateFilters.some(f => f !== 'done');
-            if (hasOtherFilters) {
-                let show = false;
-                if (window.activeStateFilters.includes('overdue') && isOverdue) show = true;
-                if (window.activeStateFilters.includes('postponed') && isPostponed) show = true;
-                if (window.activeStateFilters.includes('pending') && isPending) show = true;
-                if (!show) return false;
-            }
+        // 🌟 CORRECCIÓN: Esta regla ahora se ejecuta SIEMPRE, sin importar si hay otros filtros encendidos o no
+        if (!window.activeStateFilters.includes('show_done') && isDone) return false;
+        
+        // Si hay otros botones activos (pendientes, atrasados), debe coincidir
+        const hasOtherFilters = window.activeStateFilters.some(f => f !== 'show_done');
+        if (hasOtherFilters) {
+            let show = false;
+            if (window.activeStateFilters.includes('overdue') && isOverdue) show = true;
+            if (window.activeStateFilters.includes('postponed') && isPostponed) show = true;
+            if (window.activeStateFilters.includes('pending') && isPending) show = true;
+            if (!show) return false;
         }
         
         if (txt && !e.label.toLowerCase().includes(txt)) return false;
@@ -7479,7 +7508,7 @@ function renderListView() {
         }
         return true;
     });
-    
+
     const p = prof();
     let pendingOutflowTypes = new Set();
     plan.forEach(e => {
@@ -7505,11 +7534,11 @@ function renderListView() {
     if (chipsHtml !== '') chipsHtml += '<div style="width:100%; height:8px;"></div>';
     
     const states = [
-        { id: 'pending', name: '🔴 Pendientes' },
-        { id: 'overdue', name: '⚠️ Atrasados' },
-        { id: 'postponed', name: '🔄 Pospuestos' },
-        { id: 'done', name: '👁️‍🗨️ Ocultar Listos' } // 🌟 Sincronizado aquí también
-    ];
+      { id: 'pending', name: '🔴 Pendientes' },
+      { id: 'overdue', name: '⚠️ Atrasados' },
+      { id: 'postponed', name: '🔄 Pospuestos' },
+      { id: 'show_done', name: '👁️‍🗨️ Mostrar Listos' } // 🌟 Nuevo texto y comportamiento
+  ];
     states.forEach(s => {
         const isActive = window.activeStateFilters && window.activeStateFilters.includes(s.id);
         const bg = isActive ? 'var(--md-primary)' : 'var(--md-surface-variant)';
@@ -7695,29 +7724,7 @@ if(byId('lblCurrentVersion')) byId('lblCurrentVersion').textContent = APP_VERSIO
 
 // Interceptamos la función original renderDashboard para inyectar el Banner sin romper lo viejo
 const originalRenderDashboard = window.renderDashboard;
-window.renderDashboard = function() {
-    originalRenderDashboard(); // Dibuja la pantalla normal
-    
-    // Si hay actualización, pisamos el topAlertBadge con nuestro Banner Azul
-    if (window.updateData.available && !window.updateData.bannerShown) {
-        const topBadge = byId('topAlertBadge');
-        if(topBadge) {
-            topBadge.innerHTML = `<div onclick="nav('settings'); switchSettingsTab('tab-about', byId('tabAboutBtn'))" style="cursor:pointer; background:#e8f0fe; color:#1a73e8; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #1a73e8; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
-                <span style="font-size:24px;">🚀</span>
-                <div style="line-height:1.2;">
-                    <b style="font-size:13px; text-transform:uppercase;">Nueva Versión: ${window.updateData.version}</b><br>
-                    <u style="font-weight:bold;">Toca aquí para actualizar ➔</u>
-                </div>
-            </div>`;
-            topBadge.style.display = 'block';
-            
-            setTimeout(() => {
-                window.updateData.bannerShown = true;
-                renderDashboard(); // Re-dibuja para restaurar el estado de salud normal
-            }, 5000);
-        }
-    }
-};
+
 
 window.checkForUpdates = async function(manual = false) {
     if (manual) showToast("Buscando en GitHub...", "⏳");
@@ -7960,7 +7967,6 @@ window.confirmSmartContact = function(targetId, val) {
 
 
 
-
 function renderDashboard() {
   const p = prof();
   const todayStr = today();
@@ -7987,9 +7993,7 @@ function renderDashboard() {
   if(byId('kpiBalance')) byId('kpiBalance').textContent = fmt(proj);
   if(byId('kpiDebt')) byId('kpiDebt').textContent = fmt(p.debts.reduce((s, d) => s + getRemainingSpecialDebt(d), 0));
   
-  // ACTUALIZAR ETIQUETA DE FECHAS EN EL DASHBOARD
   if (byId('lblChartDates')) {
-      // Mostramos las fechas en formato corto (Ej. 29/06 al 31/12)
       byId('lblChartDates').textContent = formatDate(p.settings.planStart).substring(0,5) + ' al ' + formatDate(p.settings.planEnd).substring(0,5);
   }
   setTimeout(updateChart, 100);
@@ -8024,15 +8028,28 @@ function renderDashboard() {
   const topBadge = byId('topAlertBadge');
   if(topBadge) topBadge.innerHTML = alertHtml;
   
-  // Ocultamos el div gigante y feo del body (ya no se usa)
+  // 🌟 EL BANNER DE ACTUALIZACIÓN INTEGRADO LIMPIAMENTE
+  if (window.updateData && window.updateData.available && !window.updateData.bannerShown) {
+      if(topBadge) {
+          topBadge.innerHTML = `<div onclick="nav('settings'); switchSettingsTab('tab-about', byId('tabAboutBtn'))" style="cursor:pointer; background:#e8f0fe; color:#1a73e8; padding:6px 12px; border-radius:12px; font-size:12px; border:1px solid #1a73e8; box-shadow:0 2px 4px rgba(0,0,0,0.05); display:flex; align-items:center; gap:10px;">
+              <span style="font-size:24px;">🚀</span>
+              <div style="line-height:1.2;">
+                  <b style="font-size:13px; text-transform:uppercase;">Nueva Versión: ${window.updateData.version}</b><br>
+                  <u style="font-weight:bold;">Toca aquí para actualizar ➔</u>
+              </div>
+          </div>`;
+          
+          setTimeout(() => {
+              window.updateData.bannerShown = true;
+              renderDashboard(); // Re-dibuja para restaurar el estado de salud normal (Verde/Rojo) a los 5 segundos
+          }, 5000);
+      }
+  }
+
   if(byId('dashboardAlerts')) byId('dashboardAlerts').style.display = 'none';
   
   const next30Str = new Date(Date.now() + 30*24*60*60*1000).toISOString().slice(0,10);
-  
-  // 🌟 MAGIA: Atrapa TODO lo pendiente (incluso del pasado) hasta los próximos 30 días
   const upcoming = plan.filter(e => !e.done && e.originalDate <= next30Str);
-  
-  // Ordenamos para que los más viejos (atrasados) salgan primero
   upcoming.sort((a,b) => a.originalDate.localeCompare(b.originalDate));
 
   let html = '<div class="heading" style="margin-top:24px;margin-bottom:12px;">Pendientes y Próximos 30 días</div>';
@@ -8049,7 +8066,6 @@ function renderDashboard() {
          else if (u.type === 'debt' || u.type === 'debt_cut') { cBg = (u.ref.effectiveColor || '#d93025') + '15'; cTxt = u.ref.effectiveColor || '#d93025'; }
          else { cBg = '#f5f7fb'; cTxt = '#49454f'; }
          
-         // Etiqueta de Atrasado para lo que se quedó en el pasado
          if (u.originalDate < todayStr) {
              contextText = `⚠️ Atrasado (Plan: ${formatDate(u.originalDate)})`;
              cBg = '#fff3e0'; cTxt = '#e8710a'; 
@@ -8063,7 +8079,7 @@ function renderDashboard() {
      html += `<div style="background:${cBg};color:${cTxt};padding:12px;border-radius:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <div><div style="font-weight:700;font-size:14px">${prefix}${u.label}</div><div style="font-size:11px;opacity:0.8">${contextText}</div></div>
         <div style="text-align:right">
-          <div style="font-weight:900;font-size:15px">${u.amt !== 0 ? fmt(u.amt) : '-'}</div>
+          <div style="font-weight:900;font-size:15px">${u.amt !== 0 ? fmt(Math.abs(u.amt)) : '-'}</div>
           <div style="font-size:11px; color:var(--md-outline); font-weight:bold; margin-top:2px;">Saldo Restante: <span style="color:var(--md-primary)">${fmt(u.balance)}</span></div>
           ${!u.done && u.amt !== 0 ? `<button class="btn primary" style="padding:4px 10px;min-height:0;font-size:10px;margin-top:6px;border-radius:6px;background:${cTxt};color:#fff;border:none;" onclick="markCompleted('${u.type}', '${u.ref.id}', '${u.originalDate}')">Adelantar / ✔</button>` : ''}
         </div>
@@ -8071,6 +8087,61 @@ function renderDashboard() {
   });
   if(byId('upcomingList')) byId('upcomingList').innerHTML = html;
 }
+
+window.checkCloudConnection = async function() {
+    const p = prof();
+    const card = byId('syncCard');
+    const title = byId('syncCardTitle');
+    const desc = byId('syncCardDesc');
+    
+    if (!card || !p.settings.myEmail || !window.db) return;
+
+    // Colocamos la tarjeta en modo de espera
+    card.style.background = 'var(--md-primary-container)';
+    card.style.border = '1px solid var(--md-outline-variant)';
+    title.style.color = 'var(--md-primary)';
+    desc.innerHTML = '⏳ <b>Verificando certificación con la nube...</b>';
+    desc.style.color = 'var(--md-on-surface-variant)';
+
+    try {
+        if (!navigator.onLine) throw new Error("offline");
+        
+        // 🌟 CLAVE: Despierta el canal de red de Firebase por si Android lo mandó a dormir
+        await db.enableNetwork();
+
+        // Lanzamos un PING ultrarrápido directo al servidor
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000));
+        await Promise.race([db.collection('users').doc(p.settings.myEmail).get({ source: 'server' }), timeoutPromise]);
+
+        // 🟢 CONEXIÓN CERTIFICADA (Verde)
+        card.style.background = '#e6f4ea'; 
+        card.style.border = '1px solid #0f9d58';
+        title.style.color = '#0f9d58';
+        desc.innerHTML = '✅ <b>Conexión Certificada.</b> Tienes enlace directo y activo con la base de datos de Firebase.';
+        desc.style.color = '#0f9d58';
+        
+    } catch (err) {
+        // 🍊 SIN CONEXIÓN (Mandarina claro)
+        card.style.background = '#fff3e0'; 
+        card.style.border = '1px solid #ff9800';
+        title.style.color = '#e65100';
+        desc.innerHTML = '⚠️ <b>Sin conexión con la base de datos.</b> No hay respuesta del servidor en este momento. Revisa tu internet o intenta sincronizar para forzar un reinicio de red.';
+        desc.style.color = '#e65100';
+    }
+};
+
+window.confirmDayPicker = function(targetId, val, displayLabel) {
+    byId(targetId).value = val;
+    const displayEl = byId(targetId + '_display');
+    if(displayEl) displayEl.value = displayLabel;
+    closeSelectModal();
+    
+    // 🌟 CLAVE: Si estamos en deudas, forzamos a que la caja azul se recalcule al instante
+    if (typeof calculateDebtAuto === 'function' && targetId === 'f_due') {
+        calculateDebtAuto('installments');
+    }
+};
+
 
 // Auto-chequeo silente 3 segundos después de abrir la app
 setTimeout(() => checkForUpdates(false), 3000);
