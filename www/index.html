@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<meta name="app-version" content="1.2.0" />
+<meta name="app-version" content="1.2.1" />
 <meta name="github-repo" content="lissandroproyectos/monywissen" />
 <meta name="changelog" content="<br>- Nuevo modulo de registro de prestamos.<br>- busqueda en la red.<br>- Plantillas de deudas" />
 <meta name="github-store" content="https://github.com/lissandroproyectos/monywissen/releases/download/vLatest/Monywissen.apk" />
@@ -1643,7 +1643,6 @@ function toggleDebtType() {
   if(byId('mod_custom_calc')) byId('mod_custom_calc').style.display = (customDef || isCredit) ? 'contents' : 'none';
   if(byId('mod_dates')) byId('mod_dates').style.display = (customDef || isCredit) ? 'contents' : 'none';
   
-  // 🌟 AHORA ENCENDEMOS EL SELECTOR PARA TODAS LAS DEUDAS (Y LO APAGAMOS SI ES TRISEMANAL)
   if(byId('mod_days_due')) {
       if (customDef && customDef.freq === 'triweekly') {
           byId('mod_days_due').style.display = 'none';
@@ -1653,7 +1652,6 @@ function toggleDebtType() {
       }
   }
   
-  // 🌟 SEGURO ANTICRASH
   if(byId('mod_plan')) byId('mod_plan').style.display = isCard ? 'contents' : 'none';
   
   const showInt = (t === 'card' || t === 'fixed'); 
@@ -1672,9 +1670,25 @@ function toggleDebtType() {
   else if (t === 'noloan') defaultC = '#00897b';
   
   if (byId('f_color')) {
-      // Si cambiaste de tipo de deuda, o si es una deuda NUEVA sin color asignado manualmente
       if (window.lastDebtType !== t || modalIndex === null) {
           byId('f_color').value = defaultC;
+          
+          let found = false;
+          document.querySelectorAll('.f-color-bubble').forEach(el => {
+              if(el.dataset.color === defaultC) { el.innerHTML = '✓'; found = true; }
+              else { el.innerHTML = ''; }
+          });
+          
+          // Movemos la selección visual al nuevo color
+          if(byId('f_color_custom_check')) {
+              if (found) {
+                  byId('f_color_custom_wrap').style.background = 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)';
+                  byId('f_color_custom_check').innerHTML = '➕';
+              } else {
+                  byId('f_color_custom_wrap').style.background = defaultC;
+                  byId('f_color_custom_check').innerHTML = '✓';
+              }
+          }
       }
   }
   
@@ -1690,6 +1704,44 @@ function debtForm(x={}){
   let planOptions = '<option value="full"'+(x.plan==='full'?' selected':'')+'>Pago Total / 1 Mes</option>';
   for(let i=2; i<=12; i++) { planOptions += '<option value="partial-'+i+'"'+(x.plan==='partial-'+i?' selected':'')+'>'+i+' Meses</option>'; }
 
+  // 🌟 PALETA EXTENDIDA + BOTÓN DE COLOR LIBRE EN DEUDAS
+  const colors = [
+      '#d93025', '#e65100', '#fbbc04', '#0f9d58', 
+      '#00897b', '#00acc1', '#039be5', '#1a73e8', 
+      '#3f51b5', '#673ab7', '#9c27b0', '#e91e63', 
+      '#795548', '#607d8b', '#49454f', '#1c1b1f'
+  ];
+  const savedColor = x.color || '#d93025';
+  let foundInPresets = false;
+  
+  let colorBubbles = '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; align-items:center;">';
+  colors.forEach(col => {
+      const isSel = savedColor === col;
+      if(isSel) foundInPresets = true;
+      colorBubbles += `<div data-color="${col}" onclick="document.querySelectorAll('.f-color-bubble').forEach(el=>el.innerHTML=''); document.getElementById('f_color_custom_check').innerHTML='➕'; document.getElementById('f_color_custom_wrap').style.background='conic-gradient(red, yellow, lime, aqua, blue, magenta, red)'; this.innerHTML='✓'; document.getElementById('f_color').value='${col}';" class="f-color-bubble" style="width:32px; height:32px; border-radius:50%; background:${col}; cursor:pointer; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; box-shadow:0 2px 4px rgba(0,0,0,0.1); transition:transform 0.1s;">${isSel ? '✓' : ''}</div>`;
+  });
+  
+  const customBg = foundInPresets ? 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' : savedColor;
+  const customCheck = !foundInPresets ? '✓' : '➕';
+
+  colorBubbles += `
+      <div style="position:relative; width:32px; height:32px; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.1); overflow:hidden; background:${customBg}; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform 0.1s;" id="f_color_custom_wrap" title="Color Personalizado">
+         <span id="f_color_custom_check" style="color:white; font-weight:bold; font-size:14px; text-shadow: 0 1px 2px rgba(0,0,0,0.6); pointer-events:none;">${customCheck}</span>
+         <input type="color" id="f_color_picker" value="${!foundInPresets ? savedColor : '#000000'}" style="position:absolute; top:-10px; left:-10px; width:60px; height:60px; opacity:0; cursor:pointer;" onchange="
+            document.querySelectorAll('.f-color-bubble').forEach(el=>el.innerHTML=''); 
+            document.getElementById('f_color_custom_wrap').style.background = this.value;
+            document.getElementById('f_color_custom_check').innerHTML = '✓';
+            document.getElementById('f_color').value = this.value;
+         " oninput="
+            document.querySelectorAll('.f-color-bubble').forEach(el=>el.innerHTML=''); 
+            document.getElementById('f_color_custom_wrap').style.background = this.value;
+            document.getElementById('f_color_custom_check').innerHTML = '✓';
+            document.getElementById('f_color').value = this.value;
+         ">
+      </div>
+  `;
+  colorBubbles += `</div><input type="hidden" id="f_color" value="${savedColor}">`;
+
   return '<div class="grid grid2">'+
     '<div><label>Nombre de la Deuda</label><input id="f_name" value="'+(x.name||'')+'" required></div>'+
     '<div><label>Tipo</label><select id="f_type" onchange="toggleDebtType()">'+
@@ -1704,9 +1756,9 @@ function debtForm(x={}){
       '<select id="f_card_select" onchange="handleCardSelect()">'+cardOptions+'</select>'+
     '</div>'+
     
-    '<div style="grid-column: 1 / -1; display:flex; align-items:center; gap:12px; background:var(--md-surface-variant); padding:8px 12px; border-radius:12px;">'+
-      '<label style="margin:0; flex:1; font-size:14px; color:var(--md-on-surface);">Color Identificador:</label>'+
-      '<input type="color" id="f_color" value="'+(x.color||'#d93025')+'" style="width:50px; height:40px; padding:0; border:none; border-radius:8px; cursor:pointer;">'+
+    '<div style="grid-column: 1 / -1; background:var(--md-surface-variant); padding:10px 12px; border-radius:12px;">'+
+      '<label style="margin:0; font-size:13px; color:var(--md-on-surface); font-weight:bold;">Color Identificador:</label>'+
+      colorBubbles +
     '</div>'+
     
     '<div id="mod_balance" style="grid-column:1/-1;"><label>Saldo Total Adeudado</label><input id="f_balance" type="number" oninput="calculateDebtAuto(\'installments\')" value="'+(x.balance||'')+'"></div>'+
@@ -1742,7 +1794,6 @@ function debtForm(x={}){
       '</div>'+
     '</div>'+
     
-    // 🌟 AQUÍ ESTÁ EL BLOQUE QUE NOS FALTÓ PARA TARJETAS
     '<div id="mod_plan" style="display:none; grid-column:1/-1;">'+
       '<div style="background:var(--md-surface-variant); padding:12px; border-radius:12px; border:1px solid var(--md-outline-variant);">'+
         '<label style="font-weight:bold; color:var(--md-on-surface);">Fraccionar Pago en (Tarjetas):</label>'+
@@ -1768,6 +1819,7 @@ function debtForm(x={}){
     '<div id="debtProjection" style="margin-top:10px;padding:12px;background:#f5f7fb;border-radius:12px;font-size:12px;grid-column:1/-1; display:none; border:1px dashed var(--md-outline-variant);"></div>'+
   '</div>';
 }
+
 // =========================================================================
 // MOTOR INTERCEPTOR DE SELECTS (BOTTOM SHEET PREMIUM)
 // =========================================================================
@@ -2816,15 +2868,53 @@ function saveModal(){
   saveApp(); closeModal(); runPlan();
 }
 
-function promptCreateCustomDebt(editId = null) {
+window.promptCreateCustomDebt = function(editId = null) {
     const p = prof();
     p.settings.customDebts = p.settings.customDebts || [];
-    let c = { name: '', freq: 'monthly', hasInterest: false, usePlan: false, color: '#8e24aa' };
+    let c = { name: '', freq: 'monthly', hasInterest: false, usePlan: false, color: '#9c27b0' };
     
     if (editId) {
         const found = p.settings.customDebts.find(x => x.id === editId);
         if (found) c = found;
     }
+
+    // 🌟 PALETA EXTENDIDA + BOTÓN DE COLOR LIBRE (Adiós al selector feo)
+    const colors = [
+        '#d93025', '#e65100', '#fbbc04', '#0f9d58', 
+        '#00897b', '#00acc1', '#039be5', '#1a73e8', 
+        '#3f51b5', '#673ab7', '#9c27b0', '#e91e63', 
+        '#795548', '#607d8b', '#49454f', '#1c1b1f'
+    ];
+    const savedColor = c.color || '#9c27b0';
+    let foundInPresets = false;
+    
+    let colorBubbles = '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; align-items:center;">';
+    colors.forEach(col => {
+        const isSel = savedColor === col;
+        if(isSel) foundInPresets = true;
+        colorBubbles += `<div data-color="${col}" onclick="document.querySelectorAll('.cd-color-bubble').forEach(el=>el.innerHTML=''); document.getElementById('cd_color_custom_check').innerHTML='➕'; document.getElementById('cd_color_custom_wrap').style.background='conic-gradient(red, yellow, lime, aqua, blue, magenta, red)'; this.innerHTML='✓'; document.getElementById('cd_color').value='${col}';" class="cd-color-bubble" style="width:32px; height:32px; border-radius:50%; background:${col}; cursor:pointer; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; box-shadow:0 2px 4px rgba(0,0,0,0.1); transition:transform 0.1s;">${isSel ? '✓' : ''}</div>`;
+    });
+
+    const customBg = foundInPresets ? 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' : savedColor;
+    const customCheck = !foundInPresets ? '✓' : '➕';
+
+    colorBubbles += `
+      <div style="position:relative; width:32px; height:32px; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.1); overflow:hidden; background:${customBg}; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform 0.1s;" id="cd_color_custom_wrap" title="Color Personalizado">
+         <span id="cd_color_custom_check" style="color:white; font-weight:bold; font-size:14px; text-shadow: 0 1px 2px rgba(0,0,0,0.6); pointer-events:none;">${customCheck}</span>
+         <input type="color" id="cd_color_picker" value="${!foundInPresets ? savedColor : '#000000'}" style="position:absolute; top:-10px; left:-10px; width:60px; height:60px; opacity:0; cursor:pointer;" onchange="
+            document.querySelectorAll('.cd-color-bubble').forEach(el=>el.innerHTML=''); 
+            document.getElementById('cd_color_custom_wrap').style.background = this.value;
+            document.getElementById('cd_color_custom_check').innerHTML = '✓';
+            document.getElementById('cd_color').value = this.value;
+         " oninput="
+            document.querySelectorAll('.cd-color-bubble').forEach(el=>el.innerHTML=''); 
+            document.getElementById('cd_color_custom_wrap').style.background = this.value;
+            document.getElementById('cd_color_custom_check').innerHTML = '✓';
+            document.getElementById('cd_color').value = this.value;
+         ">
+      </div>
+    `;
+    colorBubbles += `</div><input type="hidden" id="cd_color" value="${savedColor}">`;
 
     const html = `
         <div class="grid" style="text-align:left; gap:8px; font-size:13px;">
@@ -2839,9 +2929,9 @@ function promptCreateCustomDebt(editId = null) {
                 <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="cd_hasInterest" ${c.hasInterest?'checked':''} style="width:16px; height:16px; min-height:0;"> Motor de Intereses (APR / Mora)</label>
                 <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="cd_usePlan" ${c.usePlan?'checked':''} style="width:16px; height:16px; min-height:0;"> Fraccionar en Plan (1 a 12 Meses)</label>
             </div>
-            <div style="display:flex; align-items:center; gap:12px; margin-top:8px;">
-                <label style="margin:0; flex:1; font-weight:bold;">Color Predeterminado</label>
-                <input type="color" id="cd_color" value="${c.color}" style="width:40px; height:36px; padding:0; border:none; border-radius:8px;">
+            <div style="margin-top:4px;">
+                <label style="margin:0; font-weight:bold;">Color Identificador</label>
+                ${colorBubbles}
             </div>
         </div>
     `;
@@ -2870,7 +2960,10 @@ function promptCreateCustomDebt(editId = null) {
             showDialog({title:'¡Éxito!', msg:'Tipo de deuda guardado.', hideCancel:true});
         }
     });
-}
+
+    // 🌟 MAGIA: Esto hace que el menú de Quincenal/Mensual sea el de Monywissen y no el feo de Android
+    setTimeout(initCustomSelects, 50);
+};
 
 function deleteCustomDebt(id) {
     showDialog({
